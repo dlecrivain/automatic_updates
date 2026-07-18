@@ -13,7 +13,7 @@
 
 - name: Extract the version ID from command output
   ansible.builtin.set_fact:
-    cv_version_id: "{{ cv_latest_version.stdout_lines[2] | trim }}"
+    cv_version_id: "{{ cv_latest_version.stdout_lines | select('match', '^[0-9]+$') | first }}"
 
 - name: Promote the latest version to Production
   ansible.builtin.command: >
@@ -46,7 +46,7 @@
 
 - name: Extract the new version ID from command output
   ansible.builtin.set_fact:
-    cv_new_version_id: "{{ cv_new_version.stdout_lines[2] | trim }}"
+    cv_new_version_id: "{{ cv_new_version.stdout_lines | select('match', '^[0-9]+$') | first }}"
 
 - name: Promote the new version to Test only
   ansible.builtin.command: >
