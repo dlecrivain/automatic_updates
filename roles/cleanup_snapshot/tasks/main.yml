@@ -1,7 +1,7 @@
 ---
 - name: Remove the snapshot after successful validation
   ansible.builtin.command: >
-    qm delsnapshot {{ proxmox_vmid }} {{ snapshot_name }}
+    pvesh delete /nodes/{{ proxmox_node }}/qemu/{{ proxmox_vmid }}/snapshot/{{ snapshot_name }}
   delegate_to: "{{ proxmox_api_host }}"
   remote_user: "{{ proxmox_ssh_user }}"
   when: snapshot_name is defined
