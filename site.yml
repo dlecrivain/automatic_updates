@@ -8,7 +8,7 @@
     - katello_promote
 
 - name: Étapes 3 à 8 - Vérification et mise à jour, toutes les VMs sauf lpkat101 et semaphore101
-  hosts: all:!lpkat101:!semaphore101
+  hosts: proxmox_all_qemu:!lpkat101:!semaphore101
   gather_facts: true
   serial: 1
   tasks:
