@@ -1,0 +1,23 @@
+---
+- name: Vérifier que les conteneurs attendus sont up
+  ansible.builtin.command: podman ps --filter name={{ item }} --format "{{ '{{' }}.Status{{ '}}' }}"
+  register: container_status
+  changed_when: false
+  loop: "{{ health_check_containers | default([]) }}"
+
+- name: Échouer si un conteneur attendu n'est pas up
+  ansible.builtin.fail:
+    msg: "Le conteneur {{ item.item }} n'est pas up"
+  loop: "{{ container_status.results | default([]) }}"
+  when: "'Up' not in item.stdout"
+
+- name: Vérifier que l'URL répond correctement
+  ansible.builtin.uri:
+    url: "{{ health_check_url }}"
+    status_code: 200
+    timeout: 10
+  when: health_check_url is defined
+  register: url_check
+  retries: 5
+  delay: 10
+  until: url_check.status == 200

@@ -1,0 +1,12 @@
+---
+- name: Lancer la mise à jour (dnf/yum)
+  ansible.builtin.dnf:
+    name: "*"
+    state: latest
+  when: ansible_facts['pkg_mgr'] in ['dnf', 'yum']
+
+- name: Lancer la mise à jour (apt)
+  ansible.builtin.apt:
+    upgrade: dist
+    update_cache: true
+  when: ansible_facts['pkg_mgr'] == 'apt'

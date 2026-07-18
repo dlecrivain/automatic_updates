@@ -1,0 +1,14 @@
+---
+- name: Créer un snapshot Proxmox avant mise à jour
+  ansible.builtin.command: >
+    qm snapshot {{ proxmox_vmid }}
+    {{ snapshot_prefix }}-{{ ansible_date_time.iso8601_basic_short }}
+    --description "Snapshot automatique avant mise à jour via Semaphore"
+  delegate_to: "{{ proxmox_api_host }}"
+  remote_user: "{{ proxmox_ssh_user }}"
+  register: snapshot_result
+
+- name: Enregistrer le nom du snapshot pour suppression future
+  ansible.builtin.set_fact:
+    snapshot_name: "{{ snapshot_prefix }}-{{ ansible_date_time.iso8601_basic_short }}"
+  when: not (snapshot_result is failed)

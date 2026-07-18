@@ -1,0 +1,47 @@
+---
+- name: Étapes 1 et 2 - Promotion de CV_Rocky_10
+  hosts: "{{ lpkat_host | default('lpkat101') }}"
+  gather_facts: false
+  vars:
+    content_view_name: CV_Rocky_10
+  roles:
+    - katello_promote
+
+- name: Étapes 3 à 8 - Vérification et mise à jour, toutes les VMs sauf lpkat101 et semaphore101
+  hosts: all:!lpkat101:!semaphore101
+  gather_facts: true
+  serial: 1
+  tasks:
+    - name: Étape 3 - Vérifier les mises à jour
+      include_role:
+        name: check_updates
+
+    - name: Bloc mise à jour (uniquement si des mises à jour existent)
+      when: has_updates
+      block:
+        - name: Étape 4 - Snapshot Proxmox
+          include_role:
+            name: proxmox_snapshot
+
+        - name: Étape 5 - Appliquer les mises à jour
+          include_role:
+            name: apply_updates
+
+        - name: Étape 6 - Reboot et attente
+          include_role:
+            name: reboot_and_wait
+
+        - name: Étape 7 - Vérifier les services
+          include_role:
+            name: health_check
+
+        - name: Étape 8 - Supprimer le snapshot (tout est OK)
+          include_role:
+            name: cleanup_snapshot
+      rescue:
+        - name: Alerter en cas d'échec (snapshot conservé pour rollback)
+          ansible.builtin.debug:
+            msg: >
+              ÉCHEC sur {{ inventory_hostname }} — le snapshot
+              {{ snapshot_name | default('N/A') }} a été conservé
+              pour un rollback manuel.

@@ -1,0 +1,6 @@
+---
+- name: Redémarrer le serveur et attendre son retour
+  ansible.builtin.reboot:
+    reboot_timeout: 600
+    connect_timeout: 20
+    post_reboot_delay: 15
