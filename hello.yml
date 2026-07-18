@@ -1,8 +1,0 @@
----
-- name: Playbook de test
-  hosts: all
-  gather_facts: false
-  tasks:
-    - name: Dire bonjour
-      debug:
-        msg: "Semaphore fonctionne correctement sur {{ inventory_hostname }} !"
