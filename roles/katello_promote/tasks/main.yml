@@ -27,7 +27,7 @@
 - name: Publish a new version
   ansible.builtin.command: >
     hammer content-view publish
-    --content-view {{ content_view_name }}
+    --name {{ content_view_name }}
     --organization "{{ katello_organization }}"
     --description "Automatic publish via Semaphore"
   delegate_to: "{{ lpkat_host }}"
