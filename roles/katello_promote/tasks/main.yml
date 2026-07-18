@@ -10,6 +10,7 @@
   register: cv_latest_version
   changed_when: false
   delegate_to: "{{ lpkat_host }}"
+  become: true
 
 - name: Promote the latest version to Production
   ansible.builtin.command: >
@@ -18,6 +19,7 @@
     --organization "{{ katello_organization }}"
     --to-lifecycle-environment Production
   delegate_to: "{{ lpkat_host }}"
+  become: true
 
 - name: Publish a new version
   ansible.builtin.command: >
@@ -26,6 +28,7 @@
     --organization "{{ katello_organization }}"
     --description "Automatic publish via Semaphore"
   delegate_to: "{{ lpkat_host }}"
+  become: true
 
 - name: Promote the new version to Test only
   ansible.builtin.command: >
@@ -34,3 +37,4 @@
     --organization "{{ katello_organization }}"
     --to-lifecycle-environment Test
   delegate_to: "{{ lpkat_host }}"
+  become: true
