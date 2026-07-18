@@ -19,6 +19,7 @@
   ansible.builtin.command: >
     hammer content-view version promote
     --id {{ cv_version_id }}
+    --organization "{{ katello_organization }}"
     --to-lifecycle-environment Production
   delegate_to: "{{ lpkat_host }}"
   become: true
@@ -52,6 +53,7 @@
   ansible.builtin.command: >
     hammer content-view version promote
     --id {{ cv_new_version_id }}
+    --organization "{{ katello_organization }}"
     --to-lifecycle-environment Test
   delegate_to: "{{ lpkat_host }}"
   become: true
