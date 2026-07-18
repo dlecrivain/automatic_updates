@@ -52,4 +52,4 @@
             msg: >
               ÉCHEC sur {{ inventory_hostname }} — le snapshot
               {{ snapshot_name | default('N/A') }} a été conservé
-            pour un rollback manuel.
+              pour un rollback manuel.
