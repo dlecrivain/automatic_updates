@@ -2,7 +2,7 @@
 - name: Create a Proxmox snapshot before update
   ansible.builtin.command: >
     pvesh create /nodes/{{ proxmox_node }}/qemu/{{ proxmox_vmid }}/snapshot
-    -snapname {{ snapshot_prefix }}-{{ ansible_date_time.iso8601_basic_short }}
+    -snapname {{ snapshot_prefix }}-{{ ansible_facts['date_time']['iso8601_basic_short'] }}
     -description "Automatic snapshot before update via Semaphore"
   delegate_to: "{{ proxmox_api_host }}"
   remote_user: "{{ proxmox_ssh_user }}"
@@ -10,5 +10,5 @@
 
 - name: Store the snapshot name for later deletion
   ansible.builtin.set_fact:
-    snapshot_name: "{{ snapshot_prefix }}-{{ ansible_date_time.iso8601_basic_short }}"
+    snapshot_name: "{{ snapshot_prefix }}-{{ ansible_facts['date_time']['iso8601_basic_short'] }}"
   when: not (snapshot_result is failed)
