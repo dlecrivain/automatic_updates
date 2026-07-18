@@ -1,11 +1,11 @@
 ---
-- name: Lancer la mise à jour (dnf/yum)
+- name: Apply updates (dnf/yum)
   ansible.builtin.dnf:
     name: "*"
     state: latest
   when: ansible_facts['pkg_mgr'] in ['dnf', 'yum']
 
-- name: Lancer la mise à jour (apt)
+- name: Apply updates (apt)
   ansible.builtin.apt:
     upgrade: dist
     update_cache: true

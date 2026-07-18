@@ -1,5 +1,5 @@
 ---
-- name: Étapes 1 et 2 - Promotion de CV_Rocky_10
+- name: Steps 1 and 2 - Promote CV_Rocky_10
   hosts: "{{ lpkat_host | default('lpkat101') }}"
   gather_facts: false
   vars:
@@ -8,48 +8,48 @@
     - role: katello_promote
       tags: [step1_katello]
 
-- name: Étapes 3 à 8 - Vérification et mise à jour, toutes les VMs sauf lpkat101 et semaphore101
+- name: Steps 3 to 8 - Check and update all VMs except lpkat101 and semaphore101
   hosts: proxmox_all_qemu:!lpkat101:!semaphore101
   gather_facts: true
   serial: 1
   tasks:
-    - name: Étape 3 - Vérifier les mises à jour
+    - name: Step 3 - Check for available updates
       include_role:
         name: check_updates
       tags: [step3_check]
 
-    - name: Bloc mise à jour (uniquement si des mises à jour existent)
+    - name: Update block (only runs if updates are available)
       when: has_updates | default(false)
       tags: [step4_snapshot, step5_update, step6_reboot, step7_health, step8_cleanup]
       block:
-        - name: Étape 4 - Snapshot Proxmox
+        - name: Step 4 - Proxmox snapshot
           include_role:
             name: proxmox_snapshot
           tags: [step4_snapshot]
 
-        - name: Étape 5 - Appliquer les mises à jour
+        - name: Step 5 - Apply updates
           include_role:
             name: apply_updates
           tags: [step5_update]
 
-        - name: Étape 6 - Reboot et attente
+        - name: Step 6 - Reboot and wait
           include_role:
             name: reboot_and_wait
           tags: [step6_reboot]
 
-        - name: Étape 7 - Vérifier les services
+        - name: Step 7 - Check services
           include_role:
             name: health_check
           tags: [step7_health]
 
-        - name: Étape 8 - Supprimer le snapshot (tout est OK)
+        - name: Step 8 - Remove snapshot (everything OK)
           include_role:
             name: cleanup_snapshot
           tags: [step8_cleanup]
       rescue:
-        - name: Alerter en cas d'échec (snapshot conservé pour rollback)
+        - name: Alert on failure (snapshot kept for rollback)
           ansible.builtin.debug:
             msg: >
-              ÉCHEC sur {{ inventory_hostname }} — le snapshot
-              {{ snapshot_name | default('N/A') }} a été conservé
-              pour un rollback manuel.
+              FAILURE on {{ inventory_hostname }} — snapshot
+              {{ snapshot_name | default('N/A') }} has been kept
+              for manual rollback.

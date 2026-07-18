@@ -1,5 +1,5 @@
 ---
-- name: Redémarrer le serveur et attendre son retour
+- name: Reboot the server and wait for it to come back
   ansible.builtin.reboot:
     reboot_timeout: 600
     connect_timeout: 20

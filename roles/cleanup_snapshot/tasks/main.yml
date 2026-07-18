@@ -1,5 +1,5 @@
 ---
-- name: Supprimer le snapshot après validation
+- name: Remove the snapshot after successful validation
   ansible.builtin.command: >
     qm delsnapshot {{ proxmox_vmid }} {{ snapshot_name }}
   delegate_to: "{{ proxmox_api_host }}"

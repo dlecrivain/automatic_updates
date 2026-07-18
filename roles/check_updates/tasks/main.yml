@@ -1,18 +1,18 @@
 ---
-- name: Vérifier les mises à jour disponibles (dnf/yum)
+- name: Check available updates (dnf/yum)
   ansible.builtin.command: dnf check-update
   register: dnf_check
   failed_when: dnf_check.rc not in [0, 100]
   changed_when: false
   when: ansible_facts['pkg_mgr'] in ['dnf', 'yum']
 
-- name: Vérifier les mises à jour disponibles (apt)
+- name: Check available updates (apt)
   ansible.builtin.command: apt list --upgradable
   register: apt_check
   changed_when: false
   when: ansible_facts['pkg_mgr'] == 'apt'
 
-- name: Déterminer s'il y a des mises à jour
+- name: Determine whether updates are available
   ansible.builtin.set_fact:
     has_updates: >-
       {{

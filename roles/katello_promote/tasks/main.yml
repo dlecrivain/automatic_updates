@@ -1,5 +1,5 @@
 ---
-- name: Récupérer la dernière version de la content view
+- name: Get the latest content view version
   ansible.builtin.command: >
     hammer content-view version list
     --content-view {{ content_view_name }}
@@ -11,7 +11,7 @@
   changed_when: false
   delegate_to: "{{ lpkat_host }}"
 
-- name: Promote la dernière version en Production
+- name: Promote the latest version to Production
   ansible.builtin.command: >
     hammer content-view version promote
     --content-view {{ content_view_name }}
@@ -19,15 +19,15 @@
     --to-lifecycle-environment Production
   delegate_to: "{{ lpkat_host }}"
 
-- name: Publier une nouvelle version
+- name: Publish a new version
   ansible.builtin.command: >
     hammer content-view publish
     --content-view {{ content_view_name }}
     --organization "{{ katello_organization }}"
-    --description "Publication automatique via Semaphore"
+    --description "Automatic publish via Semaphore"
   delegate_to: "{{ lpkat_host }}"
 
-- name: Promote la nouvelle version en Test uniquement
+- name: Promote the new version to Test only
   ansible.builtin.command: >
     hammer content-view version promote
     --content-view {{ content_view_name }}
