@@ -4,3 +4,4 @@ lpkat_host: lpkat101
 snapshot_prefix: pre-update
 katello_organization: "Production"
 ansible_ssh_common_args: '-o StrictHostKeyChecking=accept-new'
+proxmox_python_interpreter: /usr/bin/python3

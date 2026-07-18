@@ -6,6 +6,8 @@
     -description "Automatic snapshot before update via Semaphore"
   delegate_to: "{{ proxmox_api_host }}"
   remote_user: "{{ proxmox_ssh_user }}"
+  vars:
+    ansible_python_interpreter: "{{ proxmox_python_interpreter }}"
   register: snapshot_result
 
 - name: Store the snapshot name for later deletion

@@ -4,4 +4,6 @@
     pvesh delete /nodes/{{ proxmox_node }}/qemu/{{ proxmox_vmid }}/snapshot/{{ snapshot_name }}
   delegate_to: "{{ proxmox_api_host }}"
   remote_user: "{{ proxmox_ssh_user }}"
+  vars:
+    ansible_python_interpreter: "{{ proxmox_python_interpreter }}"
   when: snapshot_name is defined
