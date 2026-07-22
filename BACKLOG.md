@@ -11,11 +11,7 @@ Same logic as `automatic_updates` (Katello promote/publish) but for `CV_Proxmox`
 Remove `ansible_patching` snapshots (created by `automatic_updates`) across all VMs.
 - Schedule: every Saturday
 
-## 3. Scheduling for automatic_updates
-Run the existing `automatic_updates` playbook (Katello CV_Rocky_10 + VM patching) on a schedule.
-- Schedule: 1st Saturday of every month
-
-## 4. Podman container update playbook
+## 3. Podman container update playbook
 For all servers running Podman services:
 - Check for new images available for currently running containers
 - Pull new images
@@ -24,18 +20,18 @@ For all servers running Podman services:
 - Snapshot before applying changes (cleanup handled by the Saturday snapshot-cleanup job, see #2)
 - Image retention: keep the last 2 images per container to allow rollback, prune older ones to avoid unbounded image storage growth
 
-## 5. BunkerWeb reverse proxy
+## 4. BunkerWeb reverse proxy
 - Deploy BunkerWeb as reverse proxy in front of all services
 - Once live, update all `health_check_url` values in `host_vars/` to go through BunkerWeb
 - Add BunkerWeb's own host as a priority update target at the start of `automatic_updates`, before patching the other VMs
 
-## 6. Weekly VM backup to pCloud
+## 5. Weekly VM backup to pCloud
 - Every Friday: run `vzdump` for each VM on the Proxmox cluster
 - Upload the resulting backup to pCloud via rclone (native pCloud API, consistent with the existing `smb101` backup setup)
 - Delete the local vzdump file after a successful upload
 - Retention: keep 2 backups on pCloud for now
 
-## 7. Content view version retention playbook
+## 6. Content view version retention playbook
 Automatic cleanup of old content view versions to prevent unbounded growth from weekly publishes.
 - Applies to both `CV_Rocky_10` and `CV_Proxmox`
 - Retention: keep the last 10 versions per content view, delete older ones
