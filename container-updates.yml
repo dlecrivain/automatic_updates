@@ -3,11 +3,14 @@
   hosts: "{{ target_hosts | default('proxmox_all_qemu:!lpkat101:!semaphore101') }}"
   gather_facts: false
   serial: 1
-  vars:
-    smtp_user: "{{ lookup('env', 'SMTP_USER') }}"
-    smtp_password: "{{ lookup('env', 'SMTP_PASSWORD') }}"
-    notify_email_to: "{{ lookup('env', 'NOTIFY_EMAIL_TO') }}"
   tasks:
+    - name: Capture the full list of targeted hosts (once)
+      ansible.builtin.set_fact:
+        target_host_list: "{{ ansible_play_hosts_all }}"
+      delegate_to: localhost
+      delegate_facts: true
+      run_once: true
+
     - name: Snapshot before applying container updates
       vars:
         snapshot_label: ansible_container
@@ -20,66 +23,75 @@
         name: podman_update
       when: podman_units is defined
 
-    - name: Check services and notify by email
+    - name: Check services after update
+      include_role:
+        name: health_check
       when: podman_units is defined
-      block:
-        - name: Check services after update
-          include_role:
-            name: health_check
 
-        - name: Send report email (update successful)
-          community.general.mail:
-            host: "{{ smtp_host }}"
-            port: "{{ smtp_port }}"
-            username: "{{ smtp_user }}"
-            password: "{{ smtp_password }}"
-            to: "{{ notify_email_to }}"
-            from: "{{ smtp_user }}"
-            secure: starttls
-            subject: "[container-updates] {{ inventory_hostname }} - OK"
-            body: |
-              Container update check completed on {{ inventory_hostname }}.
-
-              Container status:
-              {% for item in podman_update_summary %}
-              - {{ item.name }}: {% if item.updated %}updated ({{ item.old_version }} -> {{ item.new_version }}){% else %}already up to date ({{ item.old_version }}){% endif %}
-              {% endfor %}
-
-              All services are healthy.
-          delegate_to: localhost
-
-      rescue:
-        - name: Send report email (problem detected)
-          community.general.mail:
-            host: "{{ smtp_host }}"
-            port: "{{ smtp_port }}"
-            username: "{{ smtp_user }}"
-            password: "{{ smtp_password }}"
-            to: "{{ notify_email_to }}"
-            from: "{{ smtp_user }}"
-            secure: starttls
-            subject: "[container-updates] {{ inventory_hostname }} - PROBLEM"
-            body: |
-              Container update check completed on {{ inventory_hostname }}, but one or more services did not come back up correctly.
-
-              Container status:
-              {% for item in podman_update_summary %}
-              - {{ item.name }}: {% if item.updated %}updated ({{ item.old_version }} -> {{ item.new_version }}){% else %}already up to date ({{ item.old_version }}){% endif %}
-              {% endfor %}
-
-              Failed containers:
-              {% for c in container_status.results | default([]) %}{% if 'Up' not in c.stdout %}
-              - {{ c.item }}
-              {% endif %}{% endfor %}
-
-              The pre-update snapshot "ansible_container" has been kept for manual rollback.
-          delegate_to: localhost
-
-        - name: Fail the play after sending the alert
-          ansible.builtin.fail:
-            msg: "Health check failed on {{ inventory_hostname }} after container update, alert email sent."
+    - name: Determine overall host status
+      ansible.builtin.set_fact:
+        host_overall_status: >-
+          {{ 'PROBLEM' if (
+               (health_check_container_results | default([]) | selectattr('status', 'equalto', 'DOWN') | list | length > 0)
+               or (health_check_url_status | default('OK') == 'FAILED')
+             ) else 'OK' }}
+      when: podman_units is defined
 
     - name: Prune old container images
       include_role:
         name: image_retention
       when: podman_units is defined
+
+- name: Send aggregated container-updates report
+  hosts: localhost
+  gather_facts: false
+  vars:
+    smtp_user: "{{ lookup('env', 'SMTP_USER') }}"
+    smtp_password: "{{ lookup('env', 'SMTP_PASSWORD') }}"
+    notify_email_to: "{{ lookup('env', 'NOTIFY_EMAIL_TO') }}"
+  tasks:
+    - name: Build and send the HTML report email
+      community.general.mail:
+        host: "{{ smtp_host }}"
+        port: "{{ smtp_port }}"
+        username: "{{ smtp_user }}"
+        password: "{{ smtp_password }}"
+        to: "{{ notify_email_to }}"
+        from: "{{ smtp_user }}"
+        secure: starttls
+        subtype: html
+        subject: >-
+          [container-updates]
+          {{ 'PROBLEM detected' if hostvars['localhost'].target_host_list | selectattr('.', 'in', hostvars) | map('extract', hostvars, 'host_overall_status') | select('equalto', 'PROBLEM') | list | length > 0 else 'All OK' }}
+        body: |
+          <html>
+          <body style="font-family: Arial, sans-serif; color: #222;">
+            <h2 style="color:#2c3e50;">Container updates report</h2>
+            <table style="border-collapse: collapse; width: 100%;">
+              <tr style="background-color:#2c3e50; color:white;">
+                <th style="padding:8px; border:1px solid #ccc; text-align:left;">Host</th>
+                <th style="padding:8px; border:1px solid #ccc; text-align:left;">Container</th>
+                <th style="padding:8px; border:1px solid #ccc; text-align:left;">Status</th>
+                <th style="padding:8px; border:1px solid #ccc; text-align:left;">URL Status</th>
+              </tr>
+              {% for h in hostvars['localhost'].target_host_list %}
+              {% if hostvars[h].podman_update_summary is defined %}
+              {% for c in hostvars[h].podman_update_summary %}
+              <tr style="background-color:{{ '#eafaf1' if (hostvars[h].health_check_container_results | default([]) | selectattr('name','equalto',c.name) | map(attribute='status') | first | default('Up')) == 'Up' else '#fdecea' }};">
+                <td style="padding:8px; border:1px solid #ccc;">{{ h }}</td>
+                <td style="padding:8px; border:1px solid #ccc;">{{ c.name }}</td>
+                <td style="padding:8px; border:1px solid #ccc;">
+                  {% set running = hostvars[h].health_check_container_results | default([]) | selectattr('name','equalto',c.name) | map(attribute='status') | first | default('Up') %}
+                  {{ running }}
+                  {% if c.updated %} — updated {{ c.old_version }} → {{ c.new_version }}{% else %} — unchanged ({{ c.old_version }}){% endif %}
+                </td>
+                <td style="padding:8px; border:1px solid #ccc;">
+                  {{ hostvars[h].health_check_url_status | default('N/A') }}
+                </td>
+              </tr>
+              {% endfor %}
+              {% endif %}
+              {% endfor %}
+            </table>
+          </body>
+          </html>

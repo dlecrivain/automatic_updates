@@ -11,80 +11,84 @@
   hosts: "{{ target_hosts | default('proxmox_all_qemu:!lpkat101:!semaphore101') }}"
   gather_facts: true
   serial: 1
+  tasks:
+    - name: Capture the full list of targeted hosts (once)
+      ansible.builtin.set_fact:
+        target_host_list: "{{ ansible_play_hosts_all }}"
+      delegate_to: localhost
+      delegate_facts: true
+      run_once: true
+
+    - name: Step 3 - Check for available updates
+      include_role:
+        name: check_updates
+
+    - name: Steps 4 to 6 (only if updates are available)
+      block:
+        - name: Step 4 - Proxmox snapshot
+          include_role:
+            name: proxmox_snapshot
+
+        - name: Step 5 - Apply updates
+          include_role:
+            name: apply_updates
+
+        - name: Step 6 - Reboot and wait
+          include_role:
+            name: reboot_and_wait
+      when: has_updates | default(false) | bool
+
+    - name: Step 7 - Check services
+      include_role:
+        name: health_check
+
+    - name: Determine overall host status
+      ansible.builtin.set_fact:
+        host_overall_status: >-
+          {{ 'PROBLEM' if (
+               (health_check_container_results | default([]) | selectattr('status', 'equalto', 'DOWN') | list | length > 0)
+               or (health_check_url_status | default('OK') == 'FAILED')
+             ) else 'OK' }}
+        host_update_applied: "{{ has_updates | default(false) | bool }}"
+
+- name: Send aggregated vm-updates report
+  hosts: localhost
+  gather_facts: false
   vars:
     smtp_user: "{{ lookup('env', 'SMTP_USER') }}"
     smtp_password: "{{ lookup('env', 'SMTP_PASSWORD') }}"
     notify_email_to: "{{ lookup('env', 'NOTIFY_EMAIL_TO') }}"
   tasks:
-    - name: Step 3 - Check for available updates
-      include_role:
-        name: check_updates
-
-    - name: Steps 4 to 7 and email notification
-      block:
-        - name: Step 4 - Proxmox snapshot
-          include_role:
-            name: proxmox_snapshot
-          when: has_updates | default(false) | bool
-
-        - name: Step 5 - Apply updates
-          include_role:
-            name: apply_updates
-          when: has_updates | default(false) | bool
-
-        - name: Step 6 - Reboot and wait
-          include_role:
-            name: reboot_and_wait
-          when: has_updates | default(false) | bool
-
-        - name: Step 7 - Check services
-          include_role:
-            name: health_check
-
-        - name: Send report email (update successful)
-          community.general.mail:
-            host: "{{ smtp_host }}"
-            port: "{{ smtp_port }}"
-            username: "{{ smtp_user }}"
-            password: "{{ smtp_password }}"
-            to: "{{ notify_email_to }}"
-            from: "{{ smtp_user }}"
-            secure: starttls
-            subject: "[vm-updates] {{ inventory_hostname }} - OK"
-            body: |
-              OS update check completed on {{ inventory_hostname }}.
-
-              {% if has_updates | default(false) | bool %}
-              Updates were available and have been applied. The server was rebooted.
-              {% else %}
-              No updates were available. Nothing was changed.
+    - name: Build and send the HTML report email
+      community.general.mail:
+        host: "{{ smtp_host }}"
+        port: "{{ smtp_port }}"
+        username: "{{ smtp_user }}"
+        password: "{{ smtp_password }}"
+        to: "{{ notify_email_to }}"
+        from: "{{ smtp_user }}"
+        secure: starttls
+        subtype: html
+        subject: "[vm-updates] Weekly patch report"
+        body: |
+          <html>
+          <body style="font-family: Arial, sans-serif; color: #222;">
+            <h2 style="color:#2c3e50;">VM updates report</h2>
+            <table style="border-collapse: collapse; width: 100%;">
+              <tr style="background-color:#2c3e50; color:white;">
+                <th style="padding:8px; border:1px solid #ccc; text-align:left;">Host</th>
+                <th style="padding:8px; border:1px solid #ccc; text-align:left;">Update Applied</th>
+                <th style="padding:8px; border:1px solid #ccc; text-align:left;">URL Status</th>
+              </tr>
+              {% for h in hostvars['localhost'].target_host_list %}
+              {% if hostvars[h].host_overall_status is defined %}
+              <tr style="background-color:{{ '#eafaf1' if hostvars[h].host_overall_status == 'OK' else '#fdecea' }};">
+                <td style="padding:8px; border:1px solid #ccc;">{{ h }}</td>
+                <td style="padding:8px; border:1px solid #ccc;">{{ 'Yes' if hostvars[h].host_update_applied else 'No update needed' }}</td>
+                <td style="padding:8px; border:1px solid #ccc;">{{ hostvars[h].health_check_url_status | default('N/A') }}</td>
+              </tr>
               {% endif %}
-
-              All monitored services are healthy.
-          delegate_to: localhost
-
-      rescue:
-        - name: Send report email (problem detected)
-          community.general.mail:
-            host: "{{ smtp_host }}"
-            port: "{{ smtp_port }}"
-            username: "{{ smtp_user }}"
-            password: "{{ smtp_password }}"
-            to: "{{ notify_email_to }}"
-            from: "{{ smtp_user }}"
-            secure: starttls
-            subject: "[vm-updates] {{ inventory_hostname }} - PROBLEM"
-            body: |
-              OS update check ran on {{ inventory_hostname }}, but a problem was detected.
-
-              {% if has_updates | default(false) | bool %}
-              Updates were available and an update/reboot was attempted, but the post-update health check failed.
-              A rollback snapshot named "ansible_patching" has been kept for manual recovery.
-              {% else %}
-              No updates were needed, but the health check still failed on the current running state.
-              {% endif %}
-          delegate_to: localhost
-
-        - name: Fail the play after sending the alert
-          ansible.builtin.fail:
-            msg: "Problem detected on {{ inventory_hostname }} during vm-updates, alert email sent."
+              {% endfor %}
+            </table>
+          </body>
+          </html>

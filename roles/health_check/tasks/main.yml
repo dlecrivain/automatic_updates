@@ -1,11 +1,4 @@
 ---
-- name: Debug health check variables
-  ansible.builtin.debug:
-    msg:
-      - "health_check_url = {{ health_check_url | default('UNDEFINED') }}"
-      - "health_check_containers = {{ health_check_containers | default('UNDEFINED') }}"
-      - "health_check_podman_user = {{ health_check_podman_user | default('UNDEFINED') }}"
-
 - name: Check that expected containers are up
   ansible.builtin.command: >
     sudo -u {{ health_check_podman_user | default('root') }}
@@ -17,13 +10,18 @@
   loop: "{{ health_check_containers | default([]) }}"
   when: health_check_containers is defined
 
-- name: Fail if an expected container is not up
-  ansible.builtin.fail:
-    msg: "Container {{ item.item }} is not up"
+- name: Initialize container health results
+  ansible.builtin.set_fact:
+    health_check_container_results: []
+  when: health_check_containers is defined
+
+- name: Record each container's health status
+  ansible.builtin.set_fact:
+    health_check_container_results: "{{ health_check_container_results + [{'name': item.item, 'status': ('Up' if 'Up' in item.stdout else 'DOWN')}] }}"
   loop: "{{ container_status.results | default([]) }}"
-  when:
-    - health_check_containers is defined
-    - "'Up' not in item.stdout"
+  loop_control:
+    label: "{{ item.item }}"
+  when: health_check_containers is defined
 
 - name: Check that the URL responds correctly
   ansible.builtin.uri:
@@ -34,4 +32,10 @@
   register: url_check
   retries: 5
   delay: 10
-  until: url_check.status == 200
+  until: (url_check.status | default(0)) == 200
+  ignore_errors: true
+
+- name: Record URL check status
+  ansible.builtin.set_fact:
+    health_check_url_status: "{{ 'OK' if (url_check.status | default(0)) == 200 else 'FAILED' }}"
+  when: health_check_url is defined
