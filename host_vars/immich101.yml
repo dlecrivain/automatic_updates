@@ -1,0 +1,7 @@
+health_check_url: "http://192.168.1.111:2283"
+health_check_podman_user: immich
+health_check_containers:
+  - immich_machine_learning
+  - immich_redis
+  - immich_postgres
+  - immich_server
