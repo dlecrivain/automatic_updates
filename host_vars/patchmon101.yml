@@ -1,9 +1,9 @@
 health_check_url: "http://192.168.1.114:3000"
 health_check_podman_user: deploy
 health_check_containers:
-  - patchmon_database_1
-  - patchmon_redis_1
-  - patchmon_guacd_1
+  - database
+  - redis
+  - guacd
   - patchmon_server_1
 
 podman_units:
