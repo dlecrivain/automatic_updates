@@ -5,3 +5,13 @@ health_check_containers:
   - patchmon_redis_1
   - patchmon_guacd_1
   - patchmon_server_1
+
+podman_units:
+  - name: database
+    scope: user
+  - name: redis
+    scope: user
+  - name: guacd
+    scope: user
+  - name: patchmon-server
+    scope: user

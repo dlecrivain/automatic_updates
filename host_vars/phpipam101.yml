@@ -4,3 +4,11 @@ health_check_containers:
   - phpipam-mariadb
   - phpipam-web
   - phpipam-cron
+
+podman_units:
+  - name: phpipam-mariadb
+    scope: root
+  - name: phpipam-web
+    scope: root
+  - name: phpipam-cron
+    scope: root

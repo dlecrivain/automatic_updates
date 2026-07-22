@@ -5,3 +5,17 @@ health_check_containers:
   - immich_redis
   - immich_postgres
   - immich_server
+
+podman_units:
+  - name: immich-postgres
+    scope: user
+    become_user: immich
+  - name: immich-redis
+    scope: user
+    become_user: immich
+  - name: immich-machine-learning
+    scope: user
+    become_user: immich
+  - name: immich-server
+    scope: user
+    become_user: immich
