@@ -4,3 +4,5 @@ lpkat_host: lpkat101
 katello_organization: "Production"
 ansible_ssh_common_args: '-o StrictHostKeyChecking=accept-new'
 proxmox_python_interpreter: /usr/bin/python3
+smtp_host: smtp.gmail.com
+smtp_port: 587

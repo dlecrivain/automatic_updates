@@ -3,6 +3,10 @@
   hosts: "{{ target_hosts | default('proxmox_all_qemu:!lpkat101:!semaphore101') }}"
   gather_facts: false
   serial: 1
+  vars:
+    smtp_user: "{{ lookup('env', 'SMTP_USER') }}"
+    smtp_password: "{{ lookup('env', 'SMTP_PASSWORD') }}"
+    notify_email_to: "{{ lookup('env', 'NOTIFY_EMAIL_TO') }}"
   tasks:
     - name: Snapshot before applying container updates
       vars:
@@ -16,10 +20,65 @@
         name: podman_update
       when: podman_units is defined
 
-    - name: Check services after update
-      include_role:
-        name: health_check
+    - name: Check services and notify by email
       when: podman_units is defined
+      block:
+        - name: Check services after update
+          include_role:
+            name: health_check
+
+        - name: Send success email if any container was updated
+          community.general.mail:
+            host: "{{ smtp_host }}"
+            port: "{{ smtp_port }}"
+            username: "{{ smtp_user }}"
+            password: "{{ smtp_password }}"
+            to: "{{ notify_email_to }}"
+            from: "{{ smtp_user }}"
+            secure: starttls
+            subject: "[container-updates] {{ inventory_hostname }} - update successful"
+            body: |
+              Container update completed successfully on {{ inventory_hostname }}.
+
+              Updated containers:
+              {% for item in podman_update_summary %}{% if item.updated %}
+              - {{ item.name }}: {{ item.old_version }} -> {{ item.new_version }}
+              {% endif %}{% endfor %}
+
+              All services are healthy.
+          delegate_to: localhost
+          when: podman_update_summary | selectattr('updated', 'equalto', true) | list | length > 0
+
+      rescue:
+        - name: Send failure email if a service did not come back up
+          community.general.mail:
+            host: "{{ smtp_host }}"
+            port: "{{ smtp_port }}"
+            username: "{{ smtp_user }}"
+            password: "{{ smtp_password }}"
+            to: "{{ notify_email_to }}"
+            from: "{{ smtp_user }}"
+            secure: starttls
+            subject: "[container-updates] {{ inventory_hostname }} - PROBLEM after update"
+            body: |
+              A container update was performed on {{ inventory_hostname }}, but one or more services did not come back up correctly.
+
+              Updated containers:
+              {% for item in podman_update_summary %}{% if item.updated %}
+              - {{ item.name }}: {{ item.old_version }} -> {{ item.new_version }}
+              {% endif %}{% endfor %}
+
+              Failed containers:
+              {% for c in container_status.results | default([]) %}{% if 'Up' not in c.stdout %}
+              - {{ c.item }}
+              {% endif %}{% endfor %}
+
+              The pre-update snapshot "ansible_container" has been kept for manual rollback.
+          delegate_to: localhost
+
+        - name: Fail the play after sending the alert
+          ansible.builtin.fail:
+            msg: "Health check failed on {{ inventory_hostname }} after container update, alert email sent."
 
     - name: Prune old container images
       include_role:
