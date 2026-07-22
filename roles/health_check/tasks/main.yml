@@ -1,4 +1,11 @@
 ---
+- name: Debug health check variables
+  ansible.builtin.debug:
+    msg:
+      - "health_check_url = {{ health_check_url | default('UNDEFINED') }}"
+      - "health_check_containers = {{ health_check_containers | default('UNDEFINED') }}"
+      - "health_check_podman_user = {{ health_check_podman_user | default('UNDEFINED') }}"
+
 - name: Check that expected containers are up
   ansible.builtin.command: >
     sudo -u {{ health_check_podman_user | default('root') }}
