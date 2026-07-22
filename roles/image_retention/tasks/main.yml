@@ -1,28 +1,16 @@
 ---
-- name: Prune old images beyond retention, keeping the 2 most recent per repository
-  ansible.builtin.command: >
-    python3 -c "
-import json, subprocess
+- name: Copy the image retention script
+  ansible.builtin.copy:
+    src: prune_images.py
+    dest: /tmp/prune_images.py
+    mode: '0755'
 
-raw = subprocess.check_output(['podman', 'images', '--format', 'json'])
-images = json.loads(raw)
-
-by_repo = {}
-for img in images:
-    repos = img.get('Names') or img.get('RepoTags') or ['<none>']
-    repo = repos[0].rsplit(':', 1)[0] if repos and repos[0] != '<none>:<none>' else 'dangling-' + img['Id'][:12]
-    by_repo.setdefault(repo, []).append(img)
-
-for repo, imgs in by_repo.items():
-    if repo.startswith('dangling-'):
-        continue
-    imgs.sort(key=lambda i: i.get('Created', 0), reverse=True)
-    for old in imgs[2:]:
-        subprocess.run(['podman', 'rmi', old['Id']], capture_output=True)
-print('done')
-"
+- name: Run image retention (keep last 2 per repository)
+  ansible.builtin.command: python3 /tmp/prune_images.py
   register: retention_result
-  changed_when: "'done' in retention_result.stdout"
-  become: "{{ unit_become | default(false) }}"
-  become_user: "{{ unit_become_user | default(omit) }}"
-  environment: "{{ unit_env | default({}) }}"
+  changed_when: "'removed:0' not in retention_result.stdout"
+
+- name: Clean up the retention script
+  ansible.builtin.file:
+    path: /tmp/prune_images.py
+    state: absent
