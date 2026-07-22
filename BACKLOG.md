@@ -18,11 +18,6 @@ Same logic as `automatic_updates` (Katello promote/publish) but for `CV_Proxmox`
 - Delete the local vzdump file after a successful upload
 - Retention: keep 2 backups on pCloud for now
 
-## 4. Content view version retention playbook
-Automatic cleanup of old content view versions to prevent unbounded growth from weekly publishes.
-- Applies to both `CV_Rocky_10` and `CV_Proxmox`
-- Retention: keep the last 10 versions per content view, delete older ones
-
-## 5. Schedule cleanup-container-snapshots
+## 4. Schedule cleanup-container-snapshots
 The `cleanup-container-snapshots.yml` playbook exists but has no schedule yet.
 - Scheduling frequency: TBD (depends on how often `container-updates` ends up running)
