@@ -1,0 +1,7 @@
+---
+- name: Update each Podman Quadlet unit
+  ansible.builtin.include_tasks: update_unit.yml
+  loop: "{{ podman_units }}"
+  loop_control:
+    loop_var: unit
+    label: "{{ unit.name }}"

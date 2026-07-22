@@ -1,0 +1,62 @@
+---
+- name: Determine become settings for this unit
+  ansible.builtin.set_fact:
+    unit_become: "{{ unit.scope == 'root' or (unit.become_user is defined and unit.become_user != ansible_user) }}"
+    unit_become_user: "{{ unit.become_user | default('root' if unit.scope == 'root' else omit) }}"
+
+- name: Get UID for cross-user rootless units
+  ansible.builtin.command: "id -u {{ unit.become_user }}"
+  register: unit_uid
+  changed_when: false
+  when: unit.scope == 'user' and unit.become_user is defined and unit.become_user != ansible_user
+
+- name: Set environment for cross-user rootless systemctl --user
+  ansible.builtin.set_fact:
+    unit_env: "{{ {'XDG_RUNTIME_DIR': '/run/user/' + unit_uid.stdout, 'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/run/user/' + unit_uid.stdout + '/bus'} if (unit.scope == 'user' and unit.become_user is defined and unit.become_user != ansible_user) else {} }}"
+
+- name: Get current image ID
+  ansible.builtin.command: "podman inspect {{ unit.name }} --format '{{ '{{' }}.Image{{ '}}' }}'"
+  register: image_before
+  changed_when: false
+  become: "{{ unit_become }}"
+  become_user: "{{ unit_become_user }}"
+  environment: "{{ unit_env }}"
+
+- name: Get image reference used
+  ansible.builtin.command: "podman inspect {{ unit.name }} --format '{{ '{{' }}.ImageName{{ '}}' }}'"
+  register: image_ref
+  changed_when: false
+  become: "{{ unit_become }}"
+  become_user: "{{ unit_become_user }}"
+  environment: "{{ unit_env }}"
+
+- name: Pull the latest image
+  ansible.builtin.command: "podman pull {{ image_ref.stdout }}"
+  register: pull_result
+  changed_when: "'Copying blob' in pull_result.stdout or 'Copying config' in pull_result.stdout"
+  become: "{{ unit_become }}"
+  become_user: "{{ unit_become_user }}"
+  environment: "{{ unit_env }}"
+
+- name: Get image ID after pull
+  ansible.builtin.command: "podman inspect {{ image_ref.stdout }} --format '{{ '{{' }}.Id{{ '}}' }}'"
+  register: image_after
+  changed_when: false
+  become: "{{ unit_become }}"
+  become_user: "{{ unit_become_user }}"
+  environment: "{{ unit_env }}"
+
+- name: Restart unit if image changed
+  ansible.builtin.systemd:
+    name: "{{ unit.name }}.service"
+    state: restarted
+    scope: "{{ 'system' if unit.scope == 'root' else 'user' }}"
+  become: "{{ unit_become }}"
+  become_user: "{{ unit_become_user }}"
+  environment: "{{ unit_env }}"
+  when: image_after.stdout != image_before.stdout
+
+- name: Wait a moment for the unit to stabilize after restart
+  ansible.builtin.pause:
+    seconds: 5
+  when: image_after.stdout != image_before.stdout

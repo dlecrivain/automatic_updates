@@ -1,0 +1,25 @@
+---
+- name: Update Podman containers on Quadlet-managed hosts
+  hosts: "{{ target_hosts | default('proxmox_all_qemu:!lpkat101:!semaphore101') }}"
+  gather_facts: false
+  serial: 1
+  tasks:
+    - name: Snapshot before applying container updates
+      include_role:
+        name: proxmox_snapshot
+      when: podman_units is defined
+
+    - name: Update Podman containers
+      include_role:
+        name: podman_update
+      when: podman_units is defined
+
+    - name: Check services after update
+      include_role:
+        name: health_check
+      when: podman_units is defined
+
+    - name: Prune old container images
+      include_role:
+        name: image_retention
+      when: podman_units is defined
