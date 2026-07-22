@@ -12,10 +12,12 @@ Remove `ansible_patching` snapshots (created by `automatic_updates`) across all 
 - Schedule: every Saturday
 
 ## 3. Podman container update playbook
-For all servers running Podman services:
-- Check for new images available for currently running containers
+Prerequisite: harmonize all container deployments to Quadlet across hosts (adguard101, phpipam101, immich101, patchmon101), for a clean, uniform setup before automating updates.
+
+Once harmonized, for all servers running Podman services via Quadlet:
+- Check for new images available for currently running containers (always pull, let Podman/redeploy decide if anything changed)
 - Pull new images
-- Redeploy containers with the new images
+- Restart the Quadlet-managed services to pick up new images
 - Run health checks after redeployment
 - Snapshot before applying changes (cleanup handled by the Saturday snapshot-cleanup job, see #2)
 - Image retention: keep the last 2 images per container to allow rollback, prune older ones to avoid unbounded image storage growth
