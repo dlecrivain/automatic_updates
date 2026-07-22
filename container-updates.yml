@@ -50,6 +50,10 @@
     smtp_password: "{{ lookup('env', 'SMTP_PASSWORD') }}"
     notify_email_to: "{{ lookup('env', 'NOTIFY_EMAIL_TO') }}"
   tasks:
+    - name: Determine if any host has a problem
+      ansible.builtin.set_fact:
+        any_problem: "{{ hostvars['localhost'].target_host_list | map('extract', hostvars) | map(attribute='host_overall_status', default='OK') | select('equalto', 'PROBLEM') | list | length > 0 }}"
+
     - name: Build and send the HTML report email
       community.general.mail:
         host: "{{ smtp_host }}"
@@ -60,9 +64,7 @@
         from: "{{ smtp_user }}"
         secure: starttls
         subtype: html
-        subject: >-
-          [container-updates]
-          {{ 'PROBLEM detected' if hostvars['localhost'].target_host_list | selectattr('.', 'in', hostvars) | map('extract', hostvars, 'host_overall_status') | select('equalto', 'PROBLEM') | list | length > 0 else 'All OK' }}
+        subject: "[container-updates] {{ 'PROBLEM detected' if any_problem else 'All OK' }}"
         body: |
           <html>
           <body style="font-family: Arial, sans-serif; color: #222;">
