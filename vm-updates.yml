@@ -11,33 +11,80 @@
   hosts: "{{ target_hosts | default('proxmox_all_qemu:!lpkat101:!semaphore101') }}"
   gather_facts: true
   serial: 1
+  vars:
+    smtp_user: "{{ lookup('env', 'SMTP_USER') }}"
+    smtp_password: "{{ lookup('env', 'SMTP_PASSWORD') }}"
+    notify_email_to: "{{ lookup('env', 'NOTIFY_EMAIL_TO') }}"
   tasks:
     - name: Step 3 - Check for available updates
       include_role:
         name: check_updates
 
-    - name: Update block (only runs if updates are available)
-      when: has_updates | default(false) | bool
+    - name: Steps 4 to 7 and email notification
       block:
         - name: Step 4 - Proxmox snapshot
           include_role:
             name: proxmox_snapshot
+          when: has_updates | default(false) | bool
 
         - name: Step 5 - Apply updates
           include_role:
             name: apply_updates
+          when: has_updates | default(false) | bool
 
         - name: Step 6 - Reboot and wait
           include_role:
             name: reboot_and_wait
+          when: has_updates | default(false) | bool
 
         - name: Step 7 - Check services
           include_role:
             name: health_check
+
+        - name: Send report email (update successful)
+          community.general.mail:
+            host: "{{ smtp_host }}"
+            port: "{{ smtp_port }}"
+            username: "{{ smtp_user }}"
+            password: "{{ smtp_password }}"
+            to: "{{ notify_email_to }}"
+            from: "{{ smtp_user }}"
+            secure: starttls
+            subject: "[vm-updates] {{ inventory_hostname }} - OK"
+            body: |
+              OS update check completed on {{ inventory_hostname }}.
+
+              {% if has_updates | default(false) | bool %}
+              Updates were available and have been applied. The server was rebooted.
+              {% else %}
+              No updates were available. Nothing was changed.
+              {% endif %}
+
+              All monitored services are healthy.
+          delegate_to: localhost
+
       rescue:
-        - name: Alert on failure (snapshot kept for rollback)
-          ansible.builtin.debug:
-            msg: >
-              FAILURE on {{ inventory_hostname }} — snapshot
-              {{ snapshot_name | default('N/A') }} has been kept
-              for manual rollback.
+        - name: Send report email (problem detected)
+          community.general.mail:
+            host: "{{ smtp_host }}"
+            port: "{{ smtp_port }}"
+            username: "{{ smtp_user }}"
+            password: "{{ smtp_password }}"
+            to: "{{ notify_email_to }}"
+            from: "{{ smtp_user }}"
+            secure: starttls
+            subject: "[vm-updates] {{ inventory_hostname }} - PROBLEM"
+            body: |
+              OS update check ran on {{ inventory_hostname }}, but a problem was detected.
+
+              {% if has_updates | default(false) | bool %}
+              Updates were available and an update/reboot was attempted, but the post-update health check failed.
+              A rollback snapshot named "ansible_patching" has been kept for manual recovery.
+              {% else %}
+              No updates were needed, but the health check still failed on the current running state.
+              {% endif %}
+          delegate_to: localhost
+
+        - name: Fail the play after sending the alert
+          ansible.builtin.fail:
+            msg: "Problem detected on {{ inventory_hostname }} during vm-updates, alert email sent."
