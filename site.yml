@@ -7,8 +7,8 @@
   roles:
     - katello_promote
 
-- name: Steps 3 to 8 - Check and update all VMs except lpkat101 and semaphore101
-  hosts: proxmox_all_qemu:!lpkat101:!semaphore101
+- name: Steps 3 to 7 - Check and update all VMs except lpkat101 and semaphore101
+  hosts: "{{ target_hosts | default('proxmox_all_qemu:!lpkat101:!semaphore101') }}"
   gather_facts: true
   serial: 1
   tasks:
@@ -34,10 +34,6 @@
         - name: Step 7 - Check services
           include_role:
             name: health_check
-
-        - name: Step 8 - Remove snapshot (everything OK)
-          include_role:
-            name: cleanup_snapshot
       rescue:
         - name: Alert on failure (snapshot kept for rollback)
           ansible.builtin.debug:
