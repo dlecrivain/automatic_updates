@@ -17,7 +17,3 @@ Same logic as `automatic_updates` (Katello promote/publish) but for `CV_Proxmox`
 - Upload the resulting backup to pCloud via rclone (native pCloud API, consistent with the existing `smb101` backup setup)
 - Delete the local vzdump file after a successful upload
 - Retention: keep 2 backups on pCloud for now
-
-## 4. Schedule cleanup-container-snapshots
-The `cleanup-container-snapshots.yml` playbook exists but has no schedule yet.
-- Scheduling frequency: TBD (depends on how often `container-updates` ends up running)
