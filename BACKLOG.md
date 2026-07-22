@@ -34,3 +34,8 @@ For all servers running Podman services:
 - Upload the resulting backup to pCloud via rclone (native pCloud API, consistent with the existing `smb101` backup setup)
 - Delete the local vzdump file after a successful upload
 - Retention: keep 2 backups on pCloud for now
+
+## 7. Content view version retention playbook
+Automatic cleanup of old content view versions to prevent unbounded growth from weekly publishes.
+- Applies to both `CV_Rocky_10` and `CV_Proxmox`
+- Retention: keep the last 10 versions per content view, delete older ones
