@@ -1,0 +1,30 @@
+# Backlog
+
+## 1. PVE update playbook (CV_Proxmox)
+Same logic as `automatic_updates` (Katello promote/publish) but for `CV_Proxmox`, applied to the Proxmox hosts themselves (pve1/pve2/pve3). Must include:
+- Content view promote to Production + publish new version + promote to Test (same pattern as CV_Rocky_10)
+- Smart VM migration before patching a node: check available resources (CPU/RAM) on the other nodes before migrating
+- Reboot the node once VMs are migrated off
+- Once all 3 nodes are updated: rebalance VMs back across the 3 hosts
+
+## 2. Snapshot cleanup playbook
+Remove `ansible_patching` snapshots (created by `automatic_updates`) across all VMs.
+- Schedule: every Saturday
+
+## 3. Scheduling for automatic_updates
+Run the existing `automatic_updates` playbook (Katello CV_Rocky_10 + VM patching) on a schedule.
+- Schedule: 1st Saturday of every month
+
+## 4. Podman container update playbook
+For all servers running Podman services:
+- Check for new images available for currently running containers
+- Pull new images
+- Redeploy containers with the new images
+- Run health checks after redeployment
+- Snapshot before applying changes (cleanup handled by the Saturday snapshot-cleanup job, see #2)
+- Image retention: keep the last 2 images per container to allow rollback, prune older ones to avoid unbounded image storage growth
+
+## 5. BunkerWeb reverse proxy
+- Deploy BunkerWeb as reverse proxy in front of all services
+- Once live, update all `health_check_url` values in `host_vars/` to go through BunkerWeb
+- Add BunkerWeb's own host as a priority update target at the start of `automatic_updates`, before patching the other VMs
