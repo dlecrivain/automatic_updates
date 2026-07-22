@@ -11,16 +11,13 @@ Same logic as `automatic_updates` (Katello promote/publish) but for `CV_Proxmox`
 Remove `ansible_patching` snapshots (created by `automatic_updates`) across all VMs.
 - Schedule: every Saturday
 
-## 3. Podman container update playbook
-Prerequisite (DONE): all container deployments harmonized to Quadlet across adguard101, phpipam101, immich101, patchmon101.
-
-For all servers running Podman services via Quadlet:
-- Check for new images available for currently running containers (always pull, let Podman/redeploy decide if anything changed)
-- Pull new images
-- Restart the Quadlet-managed services to pick up new images
-- Run health checks after redeployment
-- Snapshot before applying changes (cleanup handled by the Saturday snapshot-cleanup job, see #2)
-- Image retention: keep the last 2 images per container to allow rollback, prune older ones to avoid unbounded image storage growth
+## 3. Podman container update playbook (DONE)
+Implemented as `container-updates.yml`, validated end-to-end on adguard101, patchmon101, phpipam101, and immich101.
+- Snapshot (ansible_container) before update
+- Pull latest image, restart Quadlet unit only if image changed (idempotent)
+- Health check after update
+- Image retention: keep last 2 per repository
+- Supports root scope, rootless (same user), and rootless cross-user (become_user) via host_vars podman_units
 
 ## 4. BunkerWeb reverse proxy
 - Deploy BunkerWeb as reverse proxy in front of all services
