@@ -5,8 +5,7 @@
   vars:
     content_view_name: CV_Rocky_10
   roles:
-    - role: katello_promote
-      tags: [step1_katello]
+    - katello_promote
 
 - name: Steps 3 to 8 - Check and update all VMs except lpkat101 and semaphore101
   hosts: proxmox_all_qemu:!lpkat101:!semaphore101
@@ -16,48 +15,29 @@
     - name: Step 3 - Check for available updates
       include_role:
         name: check_updates
-        apply:
-          tags: [step3_check]
-      tags: [step3_check]
 
     - name: Update block (only runs if updates are available)
       when: has_updates | default(false)
-      tags: [step4_snapshot, step5_update, step6_reboot, step7_health, step8_cleanup]
       block:
         - name: Step 4 - Proxmox snapshot
           include_role:
             name: proxmox_snapshot
-            apply:
-              tags: [step4_snapshot]
-          tags: [step4_snapshot]
 
         - name: Step 5 - Apply updates
           include_role:
             name: apply_updates
-            apply:
-              tags: [step5_update]
-          tags: [step5_update]
 
         - name: Step 6 - Reboot and wait
           include_role:
             name: reboot_and_wait
-            apply:
-              tags: [step6_reboot]
-          tags: [step6_reboot]
 
         - name: Step 7 - Check services
           include_role:
             name: health_check
-            apply:
-              tags: [step7_health]
-          tags: [step7_health]
 
         - name: Step 8 - Remove snapshot (everything OK)
           include_role:
             name: cleanup_snapshot
-            apply:
-              tags: [step8_cleanup]
-          tags: [step8_cleanup]
       rescue:
         - name: Alert on failure (snapshot kept for rollback)
           ansible.builtin.debug:
