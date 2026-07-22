@@ -5,6 +5,8 @@
   serial: 1
   tasks:
     - name: Snapshot before applying container updates
+      vars:
+        snapshot_label: ansible_container
       include_role:
         name: proxmox_snapshot
       when: podman_units is defined
