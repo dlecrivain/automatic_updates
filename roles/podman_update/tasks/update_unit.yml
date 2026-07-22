@@ -47,7 +47,7 @@
 
 - name: Restart unit if image changed
   ansible.builtin.systemd:
-    name: "{{ unit.name }}.service"
+    name: "{{ (unit.service_name | default(unit.name)) }}.service"
     state: restarted
     scope: "{{ 'system' if unit.scope == 'root' else 'user' }}"
   become: "{{ unit_become }}"

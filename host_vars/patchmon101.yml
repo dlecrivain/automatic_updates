@@ -14,4 +14,5 @@ podman_units:
   - name: guacd
     scope: user
   - name: patchmon_server_1
+    service_name: patchmon-server
     scope: user
