@@ -6,3 +6,7 @@ ansible_ssh_common_args: '-o StrictHostKeyChecking=accept-new'
 proxmox_python_interpreter: /usr/bin/python3
 smtp_host: smtp.gmail.com
 smtp_port: 587
+cv_retention_count: 10
+cv_retention_views:
+  - CV_Rocky_10
+  - CV_Proxmox

@@ -1,0 +1,15 @@
+---
+- name: Purge old content view versions beyond retention
+  hosts: "{{ lpkat_host | default('lpkat101') }}"
+  gather_facts: false
+  tasks:
+    - name: Purge old versions for each content view
+      ansible.builtin.command: >
+        hammer content-view purge
+        --name {{ item }}
+        --organization "{{ katello_organization }}"
+        --count {{ cv_retention_count | default(10) }}
+      become: true
+      loop: "{{ cv_retention_views | default(['CV_Rocky_10', 'CV_Proxmox']) }}"
+      register: purge_result
+      changed_when: "'deleted' in (purge_result.stdout | default(''))"
