@@ -27,7 +27,7 @@
           include_role:
             name: health_check
 
-        - name: Send success email if any container was updated
+        - name: Send report email (update successful)
           community.general.mail:
             host: "{{ smtp_host }}"
             port: "{{ smtp_port }}"
@@ -36,21 +36,20 @@
             to: "{{ notify_email_to }}"
             from: "{{ smtp_user }}"
             secure: starttls
-            subject: "[container-updates] {{ inventory_hostname }} - update successful"
+            subject: "[container-updates] {{ inventory_hostname }} - OK"
             body: |
-              Container update completed successfully on {{ inventory_hostname }}.
+              Container update check completed on {{ inventory_hostname }}.
 
-              Updated containers:
-              {% for item in podman_update_summary %}{% if item.updated %}
-              - {{ item.name }}: {{ item.old_version }} -> {{ item.new_version }}
-              {% endif %}{% endfor %}
+              Container status:
+              {% for item in podman_update_summary %}
+              - {{ item.name }}: {% if item.updated %}updated ({{ item.old_version }} -> {{ item.new_version }}){% else %}already up to date ({{ item.old_version }}){% endif %}
+              {% endfor %}
 
               All services are healthy.
           delegate_to: localhost
-          when: podman_update_summary | selectattr('updated', 'equalto', true) | list | length > 0
 
       rescue:
-        - name: Send failure email if a service did not come back up
+        - name: Send report email (problem detected)
           community.general.mail:
             host: "{{ smtp_host }}"
             port: "{{ smtp_port }}"
@@ -59,14 +58,14 @@
             to: "{{ notify_email_to }}"
             from: "{{ smtp_user }}"
             secure: starttls
-            subject: "[container-updates] {{ inventory_hostname }} - PROBLEM after update"
+            subject: "[container-updates] {{ inventory_hostname }} - PROBLEM"
             body: |
-              A container update was performed on {{ inventory_hostname }}, but one or more services did not come back up correctly.
+              Container update check completed on {{ inventory_hostname }}, but one or more services did not come back up correctly.
 
-              Updated containers:
-              {% for item in podman_update_summary %}{% if item.updated %}
-              - {{ item.name }}: {{ item.old_version }} -> {{ item.new_version }}
-              {% endif %}{% endfor %}
+              Container status:
+              {% for item in podman_update_summary %}
+              - {{ item.name }}: {% if item.updated %}updated ({{ item.old_version }} -> {{ item.new_version }}){% else %}already up to date ({{ item.old_version }}){% endif %}
+              {% endfor %}
 
               Failed containers:
               {% for c in container_status.results | default([]) %}{% if 'Up' not in c.stdout %}
