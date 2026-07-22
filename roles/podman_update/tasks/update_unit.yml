@@ -1,8 +1,7 @@
 ---
-- name: Determine become settings for this unit
+- name: Determine become requirement for this unit
   ansible.builtin.set_fact:
     unit_become: "{{ unit.scope == 'root' or (unit.become_user is defined and unit.become_user != ansible_user) }}"
-    unit_become_user: "{{ unit.become_user | default('root' if unit.scope == 'root' else omit) }}"
 
 - name: Get UID for cross-user rootless units
   ansible.builtin.command: "id -u {{ unit.become_user }}"
@@ -19,7 +18,7 @@
   register: image_before
   changed_when: false
   become: "{{ unit_become }}"
-  become_user: "{{ unit_become_user }}"
+  become_user: "{{ 'root' if unit.scope == 'root' else (unit.become_user | default(omit)) }}"
   environment: "{{ unit_env }}"
 
 - name: Get image reference used
@@ -27,7 +26,7 @@
   register: image_ref
   changed_when: false
   become: "{{ unit_become }}"
-  become_user: "{{ unit_become_user }}"
+  become_user: "{{ 'root' if unit.scope == 'root' else (unit.become_user | default(omit)) }}"
   environment: "{{ unit_env }}"
 
 - name: Pull the latest image
@@ -35,7 +34,7 @@
   register: pull_result
   changed_when: "'Copying blob' in pull_result.stdout or 'Copying config' in pull_result.stdout"
   become: "{{ unit_become }}"
-  become_user: "{{ unit_become_user }}"
+  become_user: "{{ 'root' if unit.scope == 'root' else (unit.become_user | default(omit)) }}"
   environment: "{{ unit_env }}"
 
 - name: Get image ID after pull
@@ -43,7 +42,7 @@
   register: image_after
   changed_when: false
   become: "{{ unit_become }}"
-  become_user: "{{ unit_become_user }}"
+  become_user: "{{ 'root' if unit.scope == 'root' else (unit.become_user | default(omit)) }}"
   environment: "{{ unit_env }}"
 
 - name: Restart unit if image changed
@@ -52,7 +51,7 @@
     state: restarted
     scope: "{{ 'system' if unit.scope == 'root' else 'user' }}"
   become: "{{ unit_become }}"
-  become_user: "{{ unit_become_user }}"
+  become_user: "{{ 'root' if unit.scope == 'root' else (unit.become_user | default(omit)) }}"
   environment: "{{ unit_env }}"
   when: image_after.stdout != image_before.stdout
 
