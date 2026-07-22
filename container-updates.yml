@@ -79,11 +79,18 @@
               {% for h in hostvars['localhost'].target_host_list %}
               {% if hostvars[h].podman_update_summary is defined %}
               {% for c in hostvars[h].podman_update_summary %}
-              <tr style="background-color:{{ '#eafaf1' if (hostvars[h].health_check_container_results | default([]) | selectattr('name','equalto',c.name) | map(attribute='status') | first | default('Up')) == 'Up' else '#fdecea' }};">
+              {% set running = hostvars[h].health_check_container_results | default([]) | selectattr('name','equalto',c.name) | map(attribute='status') | first | default('Up') %}
+              {% if running != 'Up' %}
+              {% set row_color = '#fdecea' %}
+              {% elif c.updated %}
+              {% set row_color = '#eaf2fd' %}
+              {% else %}
+              {% set row_color = '#eafaf1' %}
+              {% endif %}
+              <tr style="background-color:{{ row_color }};">
                 <td style="padding:8px; border:1px solid #ccc;">{{ h }}</td>
                 <td style="padding:8px; border:1px solid #ccc;">{{ c.name }}</td>
                 <td style="padding:8px; border:1px solid #ccc;">
-                  {% set running = hostvars[h].health_check_container_results | default([]) | selectattr('name','equalto',c.name) | map(attribute='status') | first | default('Up') %}
                   {{ running }}
                   {% if c.updated %} — updated {{ c.old_version }} → {{ c.new_version }}{% else %} — unchanged ({{ c.old_version }}){% endif %}
                 </td>
