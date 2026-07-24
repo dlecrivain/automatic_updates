@@ -1,0 +1,23 @@
+---
+- name: Copy the placement calculation script
+  ansible.builtin.copy:
+    src: compute_placement.py
+    dest: /tmp/compute_placement.py
+    mode: '0755'
+
+- name: Compute VM placement for evacuation
+  ansible.builtin.command: >
+    python3 /tmp/compute_placement.py
+    {{ inventory_hostname }}
+    {{ pve_other_nodes | join(',') }}
+  register: placement_result
+  changed_when: false
+
+- name: Show computed placement (dry-run)
+  ansible.builtin.debug:
+    msg: "{{ placement_result.stdout | from_json }}"
+
+- name: Clean up the placement script
+  ansible.builtin.file:
+    path: /tmp/compute_placement.py
+    state: absent

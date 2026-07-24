@@ -1,0 +1,14 @@
+---
+- name: PVE host updates - placement dry-run test
+  hosts: "{{ target_pve_host | default('pve1') }}"
+  gather_facts: false
+  vars:
+    pve_all_nodes:
+      - pve1
+      - pve2
+      - pve3
+    pve_other_nodes: "{{ pve_all_nodes | difference([inventory_hostname]) }}"
+  tasks:
+    - name: Compute placement (dry-run, no actual migration)
+      include_role:
+        name: pve_placement
