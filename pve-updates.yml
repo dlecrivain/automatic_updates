@@ -18,23 +18,25 @@
       delegate_facts: true
       run_once: true
 
-    - name: Step 1 - Evacuate all VMs from this host
-      include_role:
-        name: pve_evacuate_host
-      when: evacuate_only | default(true) | bool
+    - name: Process this host, aborting the whole run on any failure
+      block:
+        - name: Step 1 - Evacuate all VMs from this host
+          include_role:
+            name: pve_evacuate_host
+          when: evacuate_only | default(true) | bool
 
-    - name: Mark this host as successfully processed
-      ansible.builtin.set_fact:
-        pve_host_status: "OK"
+        - name: Mark this host as successfully processed
+          ansible.builtin.set_fact:
+            pve_host_status: "OK"
 
-  rescue:
-    - name: Mark this host as blocked, and record why
-      ansible.builtin.set_fact:
-        pve_host_status: "BLOCKED"
-        pve_host_failure_reason: "{{ ansible_failed_result.msg | default('Unknown error') }}"
+      rescue:
+        - name: Mark this host as blocked, and record why
+          ansible.builtin.set_fact:
+            pve_host_status: "BLOCKED"
+            pve_host_failure_reason: "{{ ansible_failed_result.msg | default('Unknown error') }}"
 
-    - name: Stop the entire run - no further hosts will be processed
-      ansible.builtin.meta: end_play
+        - name: Stop the entire run - no further hosts will be processed
+          ansible.builtin.meta: end_play
 
 - name: Send aggregated pve-updates report
   hosts: localhost
