@@ -4,7 +4,7 @@
     qm migrate {{ migrate_vmid }} {{ migrate_target_node }}
     --online --with-local-disks --targetstorage nvme_data
   register: migrate_start
-  async: 3600
+  async: 14400
   poll: 0
 
 - name: Wait for the migration to complete
@@ -12,8 +12,8 @@
     jid: "{{ migrate_start.ansible_job_id }}"
   register: migrate_job
   until: migrate_job.finished
-  retries: 120
-  delay: 10
+  retries: 480
+  delay: 30
   # Tolerate transient connection blips (relevant if this host is the one running Semaphore itself)
   ignore_errors: true
 
