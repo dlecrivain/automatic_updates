@@ -1,0 +1,8 @@
+---
+- name: "Migrate {{ move.name }} from {{ move.current_node }} to {{ move.target_node }}"
+  include_role:
+    name: pve_migrate_vm
+  vars:
+    migrate_vmid: "{{ move.vmid }}"
+    migrate_target_node: "{{ move.target_node }}"
+  delegate_to: "{{ move.current_node }}"

@@ -1,0 +1,36 @@
+---
+- name: Copy the rebalance calculation script
+  ansible.builtin.copy:
+    src: compute_rebalance.py
+    dest: /tmp/compute_rebalance.py
+    mode: '0755'
+  delegate_to: "{{ proxmox_api_host }}"
+
+- name: Compute the global rebalance plan
+  ansible.builtin.command: >
+    python3 /tmp/compute_rebalance.py {{ pve_all_nodes | join(',') }}
+  register: rebalance_result
+  changed_when: false
+  delegate_to: "{{ proxmox_api_host }}"
+
+- name: Store the rebalance plan as a fact
+  ansible.builtin.set_fact:
+    rebalance_moves: "{{ rebalance_result.stdout | from_json }}"
+
+- name: Show the rebalance plan
+  ansible.builtin.debug:
+    msg: "{{ rebalance_moves }}"
+
+- name: Clean up the rebalance script
+  ansible.builtin.file:
+    path: /tmp/compute_rebalance.py
+    state: absent
+  delegate_to: "{{ proxmox_api_host }}"
+
+- name: Apply each rebalance move in sequence
+  ansible.builtin.include_tasks: apply_move.yml
+  loop: "{{ rebalance_moves }}"
+  loop_control:
+    loop_var: move
+    label: "{{ move.name }}: {{ move.current_node }} -> {{ move.target_node }}"
+  when: not (rebalance_dry_run | default(false) | bool)

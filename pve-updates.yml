@@ -7,9 +7,9 @@
   roles:
     - katello_promote
 
-- name: PVE host updates - evacuate, patch, reboot, rebalance
+- name: PVE host updates - evacuate, patch, reboot
   hosts: "{{ target_pve_hosts | default('pve1,pve2,pve3') }}"
-  gather_facts: false
+  gather_facts: true
   serial: 1
   any_errors_fatal: true
   vars:
@@ -30,14 +30,40 @@
 
     - name: Process this host, aborting the whole run on any failure
       block:
-        - name: Step 1 - Evacuate all VMs from this host
+        - name: Capture the current PVE version
+          ansible.builtin.command: pveversion
+          register: pveversion_before
+          changed_when: false
+
+        - name: Check for available updates
           include_role:
-            name: pve_evacuate_host
-          when: evacuate_only | default(true) | bool
+            name: check_updates
+
+        - name: Evacuate, patch and reboot (only if updates are available)
+          when: has_updates | default(false) | bool
+          block:
+            - name: Evacuate all VMs from this host (snapshots cleaned automatically before each move)
+              include_role:
+                name: pve_evacuate_host
+
+            - name: Apply updates (apt full-upgrade)
+              include_role:
+                name: apply_updates
+
+            - name: Reboot and wait for the host to come back
+              include_role:
+                name: reboot_and_wait
+
+        - name: Capture the PVE version after update
+          ansible.builtin.command: pveversion
+          register: pveversion_after
+          changed_when: false
 
         - name: Mark this host as successfully processed
           ansible.builtin.set_fact:
-            pve_host_status: "OK"
+            pve_host_status: "{{ 'OK' if (has_updates | default(false) | bool) else 'NO_UPDATE' }}"
+            pve_version_before: "{{ pveversion_before.stdout }}"
+            pve_version_after: "{{ pveversion_after.stdout }}"
 
       rescue:
         - name: Mark this host as blocked, and record why
@@ -57,6 +83,22 @@
         name: health_check
       when: health_check_containers is defined or health_check_url is defined
 
+- name: Global rebalance after all hosts are patched
+  hosts: "{{ target_pve_hosts | default('pve1,pve2,pve3') }}"
+  gather_facts: false
+  run_once: true
+  vars:
+    pve_all_nodes:
+      - pve1
+      - pve2
+      - pve3
+    proxmox_api_host: "{{ hostvars[pve_all_nodes | first].ansible_host }}"
+  tasks:
+    - name: Rebalance the whole cluster (skipped if the run was halted earlier)
+      include_role:
+        name: pve_rebalance
+      when: hostvars['localhost'].run_was_halted is not defined or not hostvars['localhost'].run_was_halted
+
 - name: Send aggregated pve-updates report
   hosts: localhost
   gather_facts: false
@@ -68,6 +110,17 @@
     - name: Determine if the run was halted due to a blocked host
       ansible.builtin.set_fact:
         run_was_halted: "{{ hostvars['localhost'].target_pve_host_list | map('extract', hostvars) | map(attribute='pve_host_status', default='NOT_PROCESSED') | select('equalto', 'BLOCKED') | list | length > 0 }}"
+
+    - name: Best-effort check for a newer major PVE release (informational only, never acted upon)
+      ansible.builtin.uri:
+        url: http://download.proxmox.com/debian/pve/dists/
+        return_content: true
+      register: pve_dists_check
+      ignore_errors: true
+
+    - name: Determine if a newer suite than trixie is published
+      ansible.builtin.set_fact:
+        newer_pve_suite_available: "{{ (pve_dists_check.content is defined) and ('forky' in pve_dists_check.content) }}"
 
     - name: Build and send the HTML report email
       community.general.mail:
@@ -86,18 +139,26 @@
             <h2 style="color:#2c3e50;">PVE hosts update report</h2>
             {% if run_was_halted %}
             <p style="background-color:#fdecea; padding:10px; border-left:4px solid #c0392b;">
-              <strong>The run was stopped.</strong> A host failed during processing, so no further hosts were touched, as configured.
+              <strong>The run was stopped.</strong> A host failed during processing, so no further hosts were touched, as configured. The final cluster rebalance was skipped.
+            </p>
+            {% endif %}
+            {% if newer_pve_suite_available | default(false) %}
+            <p style="background-color:#fff4e5; padding:10px; border-left:4px solid #e67e22;">
+              <strong>Note:</strong> A newer Proxmox VE major release appears to be available upstream. This has NOT been applied automatically — review manually if you want to upgrade.
             </p>
             {% endif %}
             <table style="border-collapse: collapse; width: 100%;">
               <tr style="background-color:#2c3e50; color:white;">
                 <th style="padding:8px; border:1px solid #ccc; text-align:left;">Host</th>
                 <th style="padding:8px; border:1px solid #ccc; text-align:left;">Status</th>
+                <th style="padding:8px; border:1px solid #ccc; text-align:left;">Version</th>
                 <th style="padding:8px; border:1px solid #ccc; text-align:left;">Details</th>
               </tr>
               {% for h in hostvars['localhost'].target_pve_host_list %}
               {% set st = hostvars[h].pve_host_status | default('NOT_PROCESSED') %}
               {% if st == 'OK' %}
+              {% set row_color = '#eaf2fd' %}
+              {% elif st == 'NO_UPDATE' %}
               {% set row_color = '#eafaf1' %}
               {% elif st == 'BLOCKED' %}
               {% set row_color = '#fdecea' %}
@@ -108,12 +169,25 @@
                 <td style="padding:8px; border:1px solid #ccc;">{{ h }}</td>
                 <td style="padding:8px; border:1px solid #ccc;">{{ st }}</td>
                 <td style="padding:8px; border:1px solid #ccc;">
+                  {% if hostvars[h].pve_version_before is defined %}
+                  {% if hostvars[h].pve_version_before == hostvars[h].pve_version_after %}
+                  {{ hostvars[h].pve_version_after }} (unchanged)
+                  {% else %}
+                  {{ hostvars[h].pve_version_before }} → {{ hostvars[h].pve_version_after }}
+                  {% endif %}
+                  {% else %}
+                  N/A
+                  {% endif %}
+                </td>
+                <td style="padding:8px; border:1px solid #ccc;">
                   {% if st == 'BLOCKED' %}
                   {{ hostvars[h].pve_host_failure_reason | default('Unknown error') }}
                   {% elif st == 'NOT_PROCESSED' %}
                   Skipped — run was stopped before reaching this host
+                  {% elif st == 'NO_UPDATE' %}
+                  No updates were available, host left untouched
                   {% else %}
-                  Evacuated and processed successfully
+                  Evacuated, updated and rebooted successfully
                   {% endif %}
                 </td>
               </tr>
