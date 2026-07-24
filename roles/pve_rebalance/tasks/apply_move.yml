@@ -70,3 +70,46 @@
   remote_user: "{{ proxmox_ssh_user }}"
   vars:
     ansible_python_interpreter: "{{ proxmox_python_interpreter }}"
+
+- name: "Check containers for {{ move.name }} after rebalance"
+  ansible.builtin.command: >
+    sudo -u {{ hostvars[move.name].health_check_podman_user | default('root') }}
+    podman ps --filter name={{ item }} --format "{{ '{{' }}.Status{{ '}}' }}"
+  args:
+    chdir: /tmp
+  register: post_rebalance_container_status
+  changed_when: false
+  loop: "{{ hostvars[move.name].health_check_containers | default([]) }}"
+  loop_control:
+    label: "{{ item }}"
+  delegate_to: "{{ move.name }}"
+  when: hostvars[move.name].health_check_containers is defined
+
+- name: "Fail if a container of {{ move.name }} is not up after rebalance"
+  ansible.builtin.fail:
+    msg: "Container {{ item.item }} on {{ move.name }} is not up after rebalance move to {{ move.target_node }}."
+  loop: "{{ post_rebalance_container_status.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: >
+    hostvars[move.name].health_check_containers is defined and
+    'Up' not in item.stdout
+
+- name: "Check URL for {{ move.name }} after rebalance"
+  ansible.builtin.uri:
+    url: "{{ hostvars[move.name].health_check_url }}"
+    status_code: 200
+    timeout: 10
+  register: post_rebalance_url_check
+  retries: 5
+  delay: 10
+  until: (post_rebalance_url_check.status | default(0)) == 200
+  delegate_to: "{{ move.name }}"
+  when: hostvars[move.name].health_check_url is defined
+
+- name: "Fail if {{ move.name }} URL does not respond after rebalance"
+  ansible.builtin.fail:
+    msg: "URL check failed for {{ move.name }} after rebalance move to {{ move.target_node }}."
+  when: >
+    hostvars[move.name].health_check_url is defined and
+    (post_rebalance_url_check.status | default(0)) != 200
