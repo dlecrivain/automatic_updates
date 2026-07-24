@@ -1,7 +1,9 @@
 ---
-- name: PVE host updates - single VM migration test
-  hosts: "{{ target_pve_host | default('pve1') }}"
+- name: PVE host updates - evacuate, patch, reboot, rebalance
+  hosts: "{{ target_pve_hosts | default('pve1,pve2,pve3') }}"
   gather_facts: false
+  serial: 1
+  any_errors_fatal: true
   vars:
     pve_all_nodes:
       - pve1
@@ -9,15 +11,7 @@
       - pve3
     pve_other_nodes: "{{ pve_all_nodes | difference([inventory_hostname]) }}"
   tasks:
-    - name: Compute placement (dry-run)
+    - name: Step 1 - Evacuate all VMs from this host
       include_role:
-        name: pve_placement
-      when: test_mode | default('placement') == 'placement'
-
-    - name: Migrate a single test VM
-      include_role:
-        name: pve_migrate_vm
-      vars:
-        migrate_vmid: "{{ test_vmid }}"
-        migrate_target_node: "{{ test_target_node }}"
-      when: test_mode | default('placement') == 'migrate'
+        name: pve_evacuate_host
+      when: evacuate_only | default(true) | bool

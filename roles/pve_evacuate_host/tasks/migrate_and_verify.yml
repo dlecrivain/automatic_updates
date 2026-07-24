@@ -1,0 +1,24 @@
+---
+- name: "Migrate {{ vm.name }} to {{ vm.target_node }}"
+  include_role:
+    name: pve_migrate_vm
+  vars:
+    migrate_vmid: "{{ vm.vmid }}"
+    migrate_target_node: "{{ vm.target_node }}"
+
+- name: "Check services for {{ vm.name }} after migration"
+  include_role:
+    name: health_check
+  delegate_to: "{{ vm.name }}"
+  when: hostvars[vm.name].health_check_containers is defined or hostvars[vm.name].health_check_url is defined
+
+- name: "Fail the whole run if {{ vm.name }} is not healthy after migration"
+  ansible.builtin.fail:
+    msg: >
+      VM {{ vm.name }} did not come back healthy after migrating to {{ vm.target_node }}.
+      Stopping pve-updates entirely as requested.
+  when: >
+    (hostvars[vm.name].health_check_container_results is defined and
+     hostvars[vm.name].health_check_container_results | selectattr('status', 'equalto', 'DOWN') | list | length > 0)
+    or
+    (hostvars[vm.name].health_check_url_status is defined and hostvars[vm.name].health_check_url_status == 'FAILED')

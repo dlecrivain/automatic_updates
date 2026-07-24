@@ -13,9 +13,13 @@
   register: placement_result
   changed_when: false
 
-- name: Show computed placement (dry-run)
+- name: Store the computed placement as a reusable fact
+  ansible.builtin.set_fact:
+    vm_placements: "{{ placement_result.stdout | from_json }}"
+
+- name: Show computed placement
   ansible.builtin.debug:
-    msg: "{{ placement_result.stdout | from_json }}"
+    msg: "{{ vm_placements }}"
 
 - name: Clean up the placement script
   ansible.builtin.file:

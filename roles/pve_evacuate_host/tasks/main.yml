@@ -1,0 +1,11 @@
+---
+- name: Compute placement for VMs on this host
+  include_role:
+    name: pve_placement
+
+- name: Evacuate each VM in sequence
+  ansible.builtin.include_tasks: migrate_and_verify.yml
+  loop: "{{ vm_placements }}"
+  loop_control:
+    loop_var: vm
+    label: "{{ vm.name }} -> {{ vm.target_node }}"
