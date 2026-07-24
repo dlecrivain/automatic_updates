@@ -5,3 +5,46 @@
   vars:
     migrate_vmid: "{{ vm.vmid }}"
     migrate_target_node: "{{ vm.target_node }}"
+
+- name: "Check containers for {{ vm.name }} after migration"
+  ansible.builtin.command: >
+    sudo -u {{ hostvars[vm.name].health_check_podman_user | default('root') }}
+    podman ps --filter name={{ item }} --format "{{ '{{' }}.Status{{ '}}' }}"
+  args:
+    chdir: /tmp
+  register: post_migrate_container_status
+  changed_when: false
+  loop: "{{ hostvars[vm.name].health_check_containers | default([]) }}"
+  loop_control:
+    label: "{{ item }}"
+  delegate_to: "{{ vm.name }}"
+  when: hostvars[vm.name].health_check_containers is defined
+
+- name: "Fail if a container of {{ vm.name }} is not up after migration"
+  ansible.builtin.fail:
+    msg: "Container {{ item.item }} on {{ vm.name }} is not up after migration to {{ vm.target_node }}. Stopping the whole run."
+  loop: "{{ post_migrate_container_status.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: >
+    hostvars[vm.name].health_check_containers is defined and
+    'Up' not in item.stdout
+
+- name: "Check URL for {{ vm.name }} after migration"
+  ansible.builtin.uri:
+    url: "{{ hostvars[vm.name].health_check_url }}"
+    status_code: 200
+    timeout: 10
+  register: post_migrate_url_check
+  retries: 5
+  delay: 10
+  until: (post_migrate_url_check.status | default(0)) == 200
+  delegate_to: "{{ vm.name }}"
+  when: hostvars[vm.name].health_check_url is defined
+
+- name: "Fail if {{ vm.name }} URL does not respond after migration"
+  ansible.builtin.fail:
+    msg: "URL check failed for {{ vm.name }} after migration to {{ vm.target_node }}. Stopping the whole run."
+  when: >
+    hostvars[vm.name].health_check_url is defined and
+    (post_migrate_url_check.status | default(0)) != 200

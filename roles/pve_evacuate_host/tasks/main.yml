@@ -3,15 +3,9 @@
   include_role:
     name: pve_placement
 
-- name: Migrate each VM in sequence
+- name: Migrate each VM in sequence, verifying health immediately after each one
   ansible.builtin.include_tasks: migrate_and_verify.yml
   loop: "{{ vm_placements }}"
   loop_control:
     loop_var: vm
     label: "{{ vm.name }} -> {{ vm.target_node }}"
-
-- name: Store the list of migrated VM names for later health check
-  ansible.builtin.set_fact:
-    migrated_vm_names: "{{ vm_placements | map(attribute='name') | list }}"
-  delegate_to: localhost
-  delegate_facts: true
