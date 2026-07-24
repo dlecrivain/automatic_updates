@@ -11,7 +11,92 @@
       - pve3
     pve_other_nodes: "{{ pve_all_nodes | difference([inventory_hostname]) }}"
   tasks:
+    - name: Capture the full list of targeted hosts (once)
+      ansible.builtin.set_fact:
+        target_pve_host_list: "{{ ansible_play_hosts_all }}"
+      delegate_to: localhost
+      delegate_facts: true
+      run_once: true
+
     - name: Step 1 - Evacuate all VMs from this host
       include_role:
         name: pve_evacuate_host
       when: evacuate_only | default(true) | bool
+
+    - name: Mark this host as successfully processed
+      ansible.builtin.set_fact:
+        pve_host_status: "OK"
+
+  rescue:
+    - name: Mark this host as blocked, and record why
+      ansible.builtin.set_fact:
+        pve_host_status: "BLOCKED"
+        pve_host_failure_reason: "{{ ansible_failed_result.msg | default('Unknown error') }}"
+
+    - name: Stop the entire run - no further hosts will be processed
+      ansible.builtin.meta: end_play
+
+- name: Send aggregated pve-updates report
+  hosts: localhost
+  gather_facts: false
+  vars:
+    smtp_user: "{{ lookup('env', 'SMTP_USER') }}"
+    smtp_password: "{{ lookup('env', 'SMTP_PASSWORD') }}"
+    notify_email_to: "{{ lookup('env', 'NOTIFY_EMAIL_TO') }}"
+  tasks:
+    - name: Determine if the run was halted due to a blocked host
+      ansible.builtin.set_fact:
+        run_was_halted: "{{ hostvars['localhost'].target_pve_host_list | map('extract', hostvars) | map(attribute='pve_host_status', default='NOT_PROCESSED') | select('equalto', 'BLOCKED') | list | length > 0 }}"
+
+    - name: Build and send the HTML report email
+      community.general.mail:
+        host: "{{ smtp_host }}"
+        port: "{{ smtp_port }}"
+        username: "{{ smtp_user }}"
+        password: "{{ smtp_password }}"
+        to: "{{ notify_email_to }}"
+        from: "{{ smtp_user }}"
+        secure: starttls
+        subtype: html
+        subject: "[pve-updates] {{ 'STOPPED - manual intervention needed' if run_was_halted else 'Run completed' }}"
+        body: |
+          <html>
+          <body style="font-family: Arial, sans-serif; color: #222;">
+            <h2 style="color:#2c3e50;">PVE hosts update report</h2>
+            {% if run_was_halted %}
+            <p style="background-color:#fdecea; padding:10px; border-left:4px solid #c0392b;">
+              <strong>The run was stopped.</strong> A host failed during processing, so no further hosts were touched, as configured.
+            </p>
+            {% endif %}
+            <table style="border-collapse: collapse; width: 100%;">
+              <tr style="background-color:#2c3e50; color:white;">
+                <th style="padding:8px; border:1px solid #ccc; text-align:left;">Host</th>
+                <th style="padding:8px; border:1px solid #ccc; text-align:left;">Status</th>
+                <th style="padding:8px; border:1px solid #ccc; text-align:left;">Details</th>
+              </tr>
+              {% for h in hostvars['localhost'].target_pve_host_list %}
+              {% set st = hostvars[h].pve_host_status | default('NOT_PROCESSED') %}
+              {% if st == 'OK' %}
+              {% set row_color = '#eafaf1' %}
+              {% elif st == 'BLOCKED' %}
+              {% set row_color = '#fdecea' %}
+              {% else %}
+              {% set row_color = '#f5f5f5' %}
+              {% endif %}
+              <tr style="background-color:{{ row_color }};">
+                <td style="padding:8px; border:1px solid #ccc;">{{ h }}</td>
+                <td style="padding:8px; border:1px solid #ccc;">{{ st }}</td>
+                <td style="padding:8px; border:1px solid #ccc;">
+                  {% if st == 'BLOCKED' %}
+                  {{ hostvars[h].pve_host_failure_reason | default('Unknown error') }}
+                  {% elif st == 'NOT_PROCESSED' %}
+                  Skipped — run was stopped before reaching this host
+                  {% else %}
+                  Evacuated and processed successfully
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </table>
+          </body>
+          </html>
