@@ -1,4 +1,29 @@
 ---
+- name: Check for residual snapshots that would block migration
+  ansible.builtin.command: >
+    qm listsnapshot {{ migrate_vmid }}
+  register: existing_snapshots
+  changed_when: false
+
+- name: Remove residual ansible_container snapshot if present
+  ansible.builtin.command: >
+    qm delsnapshot {{ migrate_vmid }} ansible_container
+  when: "'ansible_container' in existing_snapshots.stdout"
+
+- name: Remove residual ansible_patching snapshot if present
+  ansible.builtin.command: >
+    qm delsnapshot {{ migrate_vmid }} ansible_patching
+  when: "'ansible_patching' in existing_snapshots.stdout"
+
+- name: Confirm no blocking snapshot remains before migrating
+  ansible.builtin.command: >
+    qm listsnapshot {{ migrate_vmid }}
+  register: snapshot_recheck
+  changed_when: false
+  retries: 6
+  delay: 5
+  until: "'ansible_container' not in snapshot_recheck.stdout and 'ansible_patching' not in snapshot_recheck.stdout"
+
 - name: Start the live migration
   ansible.builtin.command: >
     qm migrate {{ migrate_vmid }} {{ migrate_target_node }}
