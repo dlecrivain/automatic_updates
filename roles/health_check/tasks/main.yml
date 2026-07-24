@@ -8,6 +8,9 @@
   register: container_status
   changed_when: false
   loop: "{{ health_check_containers | default([]) }}"
+  loop_control:
+    label: "{{ item }}"
+  delegate_to: "{{ health_check_delegate_to | default(omit) }}"
   when: health_check_containers is defined
 
 - name: Initialize container health results
@@ -34,8 +37,27 @@
   delay: 10
   until: (url_check.status | default(0)) == 200
   ignore_errors: true
+  delegate_to: "{{ health_check_delegate_to | default(omit) }}"
 
 - name: Record URL check status
   ansible.builtin.set_fact:
     health_check_url_status: "{{ 'OK' if (url_check.status | default(0)) == 200 else 'FAILED' }}"
   when: health_check_url is defined
+
+- name: Fail if any container is down (only when explicitly requested)
+  ansible.builtin.fail:
+    msg: "Container {{ item.name }} is not up."
+  loop: "{{ health_check_container_results | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - health_check_fail_on_unhealthy | default(false) | bool
+    - item.status == 'DOWN'
+
+- name: Fail if URL check failed (only when explicitly requested)
+  ansible.builtin.fail:
+    msg: "URL check failed for {{ health_check_url }}."
+  when:
+    - health_check_fail_on_unhealthy | default(false) | bool
+    - health_check_url is defined
+    - health_check_url_status == 'FAILED'
