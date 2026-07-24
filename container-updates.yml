@@ -21,11 +21,16 @@
     - name: Update Podman containers
       include_role:
         name: podman_update
-      when: podman_units is defined
+      when: podman_units is defined and not (snapshot_already_exists | default(false))
 
     - name: Check services after update
       include_role:
         name: health_check
+      when: podman_units is defined
+
+    - name: Record whether the update was skipped due to an existing snapshot
+      ansible.builtin.set_fact:
+        host_update_skipped: "{{ (podman_units is defined) and (snapshot_already_exists | default(false)) }}"
       when: podman_units is defined
 
     - name: Determine overall host status
@@ -77,7 +82,13 @@
                 <th style="padding:8px; border:1px solid #ccc; text-align:left;">URL Status</th>
               </tr>
               {% for h in hostvars['localhost'].target_host_list %}
-              {% if hostvars[h].podman_update_summary is defined %}
+              {% if hostvars[h].host_update_skipped | default(false) %}
+              <tr style="background-color:#fff4e5;">
+                <td style="padding:8px; border:1px solid #ccc;">{{ h }}</td>
+                <td style="padding:8px; border:1px solid #ccc;" colspan="3">Skipped — an "ansible_container" snapshot already existed</td>
+              </tr>
+              {% endif %}
+              {% if hostvars[h].podman_update_summary is defined and not (hostvars[h].host_update_skipped | default(false)) %}
               {% for c in hostvars[h].podman_update_summary %}
               {% set running = hostvars[h].health_check_container_results | default([]) | selectattr('name','equalto',c.name) | map(attribute='status') | first | default('Up') %}
               {% if running != 'Up' %}
