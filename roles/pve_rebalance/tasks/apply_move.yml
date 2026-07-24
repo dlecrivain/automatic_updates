@@ -1,75 +1,11 @@
 ---
-- name: "Check for residual snapshots on {{ move.name }}"
-  ansible.builtin.command: >
-    qm listsnapshot {{ move.vmid }}
-  register: existing_snapshots
-  changed_when: false
-  delegate_to: "{{ move.current_node }}"
-  remote_user: "{{ proxmox_ssh_user }}"
+- name: "Migrate {{ move.name }} to {{ move.target_node }}"
+  include_role:
+    name: pve_migrate_vm
   vars:
-    ansible_python_interpreter: "{{ proxmox_python_interpreter }}"
-
-- name: "Remove residual ansible_container snapshot on {{ move.name }} if present"
-  ansible.builtin.command: >
-    qm delsnapshot {{ move.vmid }} ansible_container
-  when: "'ansible_container' in existing_snapshots.stdout"
-  delegate_to: "{{ move.current_node }}"
-  remote_user: "{{ proxmox_ssh_user }}"
-  vars:
-    ansible_python_interpreter: "{{ proxmox_python_interpreter }}"
-
-- name: "Remove residual ansible_patching snapshot on {{ move.name }} if present"
-  ansible.builtin.command: >
-    qm delsnapshot {{ move.vmid }} ansible_patching
-  when: "'ansible_patching' in existing_snapshots.stdout"
-  delegate_to: "{{ move.current_node }}"
-  remote_user: "{{ proxmox_ssh_user }}"
-  vars:
-    ansible_python_interpreter: "{{ proxmox_python_interpreter }}"
-
-- name: "Start the live migration of {{ move.name }}"
-  ansible.builtin.command: >
-    qm migrate {{ move.vmid }} {{ move.target_node }}
-    --online --with-local-disks --targetstorage nvme_data
-  register: migrate_start
-  async: 21600
-  poll: 0
-  delegate_to: "{{ move.current_node }}"
-  remote_user: "{{ proxmox_ssh_user }}"
-  vars:
-    ansible_python_interpreter: "{{ proxmox_python_interpreter }}"
-
-- name: "Wait for {{ move.name }} migration to complete"
-  ansible.builtin.async_status:
-    jid: "{{ migrate_start.ansible_job_id }}"
-  register: migrate_job
-  until: migrate_job.finished
-  retries: 720
-  delay: 30
-  ignore_errors: true
-  delegate_to: "{{ move.current_node }}"
-  remote_user: "{{ proxmox_ssh_user }}"
-  vars:
-    ansible_python_interpreter: "{{ proxmox_python_interpreter }}"
-
-- name: "Fail clearly if the migration of {{ move.name }} failed"
-  ansible.builtin.fail:
-    msg: "Rebalance migration of VM {{ move.vmid }} ({{ move.name }}) to {{ move.target_node }} failed: {{ migrate_job.stderr | default('unknown error') }}"
-  when: migrate_job.rc is defined and migrate_job.rc != 0
-
-- name: "Confirm {{ move.name }} is running on {{ move.target_node }}"
-  ansible.builtin.command: >
-    pvesh get /nodes/{{ move.target_node }}/qemu/{{ move.vmid }}/status/current
-    --output-format json
-  register: vm_status_check
-  retries: 6
-  delay: 5
-  until: (vm_status_check.stdout | from_json).status == 'running'
-  changed_when: false
-  delegate_to: "{{ move.current_node }}"
-  remote_user: "{{ proxmox_ssh_user }}"
-  vars:
-    ansible_python_interpreter: "{{ proxmox_python_interpreter }}"
+    migrate_vmid: "{{ move.vmid }}"
+    migrate_target_node: "{{ move.target_node }}"
+    migrate_delegate_to: "{{ move.current_node }}"
 
 - name: "Check {{ move.name }} health after rebalance move"
   include_role:

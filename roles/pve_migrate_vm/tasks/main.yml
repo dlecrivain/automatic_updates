@@ -4,16 +4,28 @@
     qm listsnapshot {{ migrate_vmid }}
   register: existing_snapshots
   changed_when: false
+  delegate_to: "{{ migrate_delegate_to | default(inventory_hostname) }}"
+  remote_user: "{{ migrate_remote_user | default(proxmox_ssh_user) }}"
+  vars:
+    ansible_python_interpreter: "{{ migrate_python_interpreter | default(proxmox_python_interpreter) }}"
 
 - name: Remove residual ansible_container snapshot if present
   ansible.builtin.command: >
     qm delsnapshot {{ migrate_vmid }} ansible_container
   when: "'ansible_container' in existing_snapshots.stdout"
+  delegate_to: "{{ migrate_delegate_to | default(inventory_hostname) }}"
+  remote_user: "{{ migrate_remote_user | default(proxmox_ssh_user) }}"
+  vars:
+    ansible_python_interpreter: "{{ migrate_python_interpreter | default(proxmox_python_interpreter) }}"
 
 - name: Remove residual ansible_patching snapshot if present
   ansible.builtin.command: >
     qm delsnapshot {{ migrate_vmid }} ansible_patching
   when: "'ansible_patching' in existing_snapshots.stdout"
+  delegate_to: "{{ migrate_delegate_to | default(inventory_hostname) }}"
+  remote_user: "{{ migrate_remote_user | default(proxmox_ssh_user) }}"
+  vars:
+    ansible_python_interpreter: "{{ migrate_python_interpreter | default(proxmox_python_interpreter) }}"
 
 - name: Confirm no blocking snapshot remains before migrating
   ansible.builtin.command: >
@@ -23,6 +35,10 @@
   retries: 6
   delay: 5
   until: "'ansible_container' not in snapshot_recheck.stdout and 'ansible_patching' not in snapshot_recheck.stdout"
+  delegate_to: "{{ migrate_delegate_to | default(inventory_hostname) }}"
+  remote_user: "{{ migrate_remote_user | default(proxmox_ssh_user) }}"
+  vars:
+    ansible_python_interpreter: "{{ migrate_python_interpreter | default(proxmox_python_interpreter) }}"
 
 - name: Start the live migration
   ansible.builtin.command: >
@@ -31,6 +47,10 @@
   register: migrate_start
   async: 21600
   poll: 0
+  delegate_to: "{{ migrate_delegate_to | default(inventory_hostname) }}"
+  remote_user: "{{ migrate_remote_user | default(proxmox_ssh_user) }}"
+  vars:
+    ansible_python_interpreter: "{{ migrate_python_interpreter | default(proxmox_python_interpreter) }}"
 
 - name: Wait for the migration to complete
   ansible.builtin.async_status:
@@ -40,6 +60,10 @@
   retries: 720
   delay: 30
   ignore_errors: true
+  delegate_to: "{{ migrate_delegate_to | default(inventory_hostname) }}"
+  remote_user: "{{ migrate_remote_user | default(proxmox_ssh_user) }}"
+  vars:
+    ansible_python_interpreter: "{{ migrate_python_interpreter | default(proxmox_python_interpreter) }}"
 
 - name: Fail clearly if the migration job itself reports an error
   ansible.builtin.fail:
@@ -55,3 +79,7 @@
   delay: 5
   until: (vm_status_check.stdout | from_json).status == 'running'
   changed_when: false
+  delegate_to: "{{ migrate_delegate_to | default(inventory_hostname) }}"
+  remote_user: "{{ migrate_remote_user | default(proxmox_ssh_user) }}"
+  vars:
+    ansible_python_interpreter: "{{ migrate_python_interpreter | default(proxmox_python_interpreter) }}"
