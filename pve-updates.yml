@@ -1,4 +1,12 @@
 ---
+- name: Steps 1 and 2 - Promote CV_Proxmox
+  hosts: "{{ lpkat_host | default('lpkat101') }}"
+  gather_facts: false
+  vars:
+    content_view_name: CV_Proxmox
+  roles:
+    - katello_promote
+
 - name: PVE host updates - evacuate, patch, reboot, rebalance
   hosts: "{{ target_pve_hosts | default('pve1,pve2,pve3') }}"
   gather_facts: false
