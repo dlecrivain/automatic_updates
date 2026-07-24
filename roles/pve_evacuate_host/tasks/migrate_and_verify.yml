@@ -12,6 +12,6 @@
   vars:
     health_check_delegate_to: "{{ vm.name }}"
     health_check_fail_on_unhealthy: true
-    health_check_containers: "{{ hostvars[vm.name].health_check_containers | default(omit) }}"
-    health_check_url: "{{ hostvars[vm.name].health_check_url | default(omit) }}"
-    health_check_podman_user: "{{ hostvars[vm.name].health_check_podman_user | default(omit) }}"
+    health_check_containers: "{{ hostvars[vm.name].health_check_containers | default([]) }}"
+    health_check_url: "{{ hostvars[vm.name].health_check_url | default('') }}"
+    health_check_podman_user: "{{ hostvars[vm.name].health_check_podman_user | default('root') }}"
