@@ -5,6 +5,9 @@
     dest: /tmp/compute_rebalance.py
     mode: '0755'
   delegate_to: "{{ proxmox_api_host }}"
+  remote_user: "{{ proxmox_ssh_user }}"
+  vars:
+    ansible_python_interpreter: "{{ proxmox_python_interpreter }}"
 
 - name: Compute the global rebalance plan
   ansible.builtin.command: >
@@ -12,6 +15,9 @@
   register: rebalance_result
   changed_when: false
   delegate_to: "{{ proxmox_api_host }}"
+  remote_user: "{{ proxmox_ssh_user }}"
+  vars:
+    ansible_python_interpreter: "{{ proxmox_python_interpreter }}"
 
 - name: Store the rebalance plan as a fact
   ansible.builtin.set_fact:
@@ -26,6 +32,9 @@
     path: /tmp/compute_rebalance.py
     state: absent
   delegate_to: "{{ proxmox_api_host }}"
+  remote_user: "{{ proxmox_ssh_user }}"
+  vars:
+    ansible_python_interpreter: "{{ proxmox_python_interpreter }}"
 
 - name: Apply each rebalance move in sequence
   ansible.builtin.include_tasks: apply_move.yml
