@@ -10,6 +10,8 @@
       - pve2
       - pve3
     pve_other_nodes: "{{ pve_all_nodes | difference([inventory_hostname]) }}"
+    proxmox_api_node: "{{ pve_other_nodes | first }}"
+    proxmox_api_host: "{{ hostvars[proxmox_api_node].ansible_host }}"
   tasks:
     - name: Capture the full list of targeted hosts (once)
       ansible.builtin.set_fact:
