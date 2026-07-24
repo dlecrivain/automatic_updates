@@ -1,0 +1,13 @@
+---
+- name: Build and send the HTML report email
+  community.general.mail:
+    host: "{{ smtp_host }}"
+    port: "{{ smtp_port }}"
+    username: "{{ smtp_user }}"
+    password: "{{ smtp_password }}"
+    to: "{{ notify_email_to }}"
+    from: "{{ smtp_user }}"
+    secure: starttls
+    subtype: html
+    subject: "{{ report_subject }}"
+    body: "{{ report_body }}"

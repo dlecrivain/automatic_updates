@@ -1,0 +1,8 @@
+---
+- name: Determine overall host status
+  ansible.builtin.set_fact:
+    host_overall_status: >-
+      {{ 'PROBLEM' if (
+           (health_check_container_results | default([]) | selectattr('status', 'equalto', 'DOWN') | list | length > 0)
+           or (health_check_url_status | default('OK') == 'FAILED')
+         ) else 'OK' }}

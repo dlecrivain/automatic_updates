@@ -1,0 +1,7 @@
+---
+- name: Capture the full list of targeted hosts (once)
+  ansible.builtin.set_fact:
+    target_host_list: "{{ ansible_play_hosts_all }}"
+  delegate_to: localhost
+  delegate_facts: true
+  run_once: true

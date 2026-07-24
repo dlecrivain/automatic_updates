@@ -22,11 +22,8 @@
     proxmox_api_host: "{{ hostvars[proxmox_api_node].ansible_host }}"
   tasks:
     - name: Capture the full list of targeted hosts (once)
-      ansible.builtin.set_fact:
-        target_pve_host_list: "{{ ansible_play_hosts_all }}"
-      delegate_to: localhost
-      delegate_facts: true
-      run_once: true
+      include_role:
+        name: capture_host_list
 
     - name: Process this host, aborting the whole run on any failure
       block:
@@ -97,14 +94,10 @@
 - name: Send aggregated pve-updates report
   hosts: localhost
   gather_facts: false
-  vars:
-    smtp_user: "{{ lookup('env', 'SMTP_USER') }}"
-    smtp_password: "{{ lookup('env', 'SMTP_PASSWORD') }}"
-    notify_email_to: "{{ lookup('env', 'NOTIFY_EMAIL_TO') }}"
   tasks:
     - name: Determine if the run was halted due to a blocked host
       ansible.builtin.set_fact:
-        run_was_halted: "{{ hostvars['localhost'].target_pve_host_list | map('extract', hostvars) | map(attribute='pve_host_status', default='NOT_PROCESSED') | select('equalto', 'BLOCKED') | list | length > 0 }}"
+        run_was_halted: "{{ hostvars['localhost'].target_host_list | map('extract', hostvars) | map(attribute='pve_host_status', default='NOT_PROCESSED') | select('equalto', 'BLOCKED') | list | length > 0 }}"
 
     - name: Best-effort check for a newer major PVE release (informational only, never acted upon)
       ansible.builtin.uri:
@@ -118,17 +111,11 @@
         newer_pve_suite_available: "{{ (pve_dists_check.content is defined) and ('forky' in pve_dists_check.content) }}"
 
     - name: Build and send the HTML report email
-      community.general.mail:
-        host: "{{ smtp_host }}"
-        port: "{{ smtp_port }}"
-        username: "{{ smtp_user }}"
-        password: "{{ smtp_password }}"
-        to: "{{ notify_email_to }}"
-        from: "{{ smtp_user }}"
-        secure: starttls
-        subtype: html
-        subject: "[pve-updates] {{ 'STOPPED - manual intervention needed' if run_was_halted else 'Run completed' }}"
-        body: |
+      include_role:
+        name: send_report
+      vars:
+        report_subject: "[pve-updates] {{ 'STOPPED - manual intervention needed' if run_was_halted else 'Run completed' }}"
+        report_body: |
           <html>
           <body style="font-family: Arial, sans-serif; color: #222;">
             <h2 style="color:#2c3e50;">PVE hosts update report</h2>
@@ -149,7 +136,7 @@
                 <th style="padding:8px; border:1px solid #ccc; text-align:left;">Version</th>
                 <th style="padding:8px; border:1px solid #ccc; text-align:left;">Details</th>
               </tr>
-              {% for h in hostvars['localhost'].target_pve_host_list %}
+              {% for h in hostvars['localhost'].target_host_list %}
               {% set st = hostvars[h].pve_host_status | default('NOT_PROCESSED') %}
               {% if st == 'OK' %}
               {% set row_color = '#eaf2fd' %}

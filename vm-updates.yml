@@ -13,11 +13,8 @@
   serial: 1
   tasks:
     - name: Capture the full list of targeted hosts (once)
-      ansible.builtin.set_fact:
-        target_host_list: "{{ ansible_play_hosts_all }}"
-      delegate_to: localhost
-      delegate_facts: true
-      run_once: true
+      include_role:
+        name: capture_host_list
 
     - name: Step 3 - Check for available updates
       include_role:
@@ -47,35 +44,24 @@
         name: health_check
 
     - name: Determine overall host status
+      include_role:
+        name: host_status
+
+    - name: Record whether an update was applied or skipped for this host
       ansible.builtin.set_fact:
-        host_overall_status: >-
-          {{ 'PROBLEM' if (
-               (health_check_container_results | default([]) | selectattr('status', 'equalto', 'DOWN') | list | length > 0)
-               or (health_check_url_status | default('OK') == 'FAILED')
-             ) else 'OK' }}
         host_update_applied: "{{ (has_updates | default(false) | bool) and not (snapshot_already_exists | default(false)) }}"
         host_update_skipped: "{{ (has_updates | default(false) | bool) and (snapshot_already_exists | default(false)) }}"
 
 - name: Send aggregated vm-updates report
   hosts: localhost
   gather_facts: false
-  vars:
-    smtp_user: "{{ lookup('env', 'SMTP_USER') }}"
-    smtp_password: "{{ lookup('env', 'SMTP_PASSWORD') }}"
-    notify_email_to: "{{ lookup('env', 'NOTIFY_EMAIL_TO') }}"
   tasks:
     - name: Build and send the HTML report email
-      community.general.mail:
-        host: "{{ smtp_host }}"
-        port: "{{ smtp_port }}"
-        username: "{{ smtp_user }}"
-        password: "{{ smtp_password }}"
-        to: "{{ notify_email_to }}"
-        from: "{{ smtp_user }}"
-        secure: starttls
-        subtype: html
-        subject: "[vm-updates] Weekly patch report"
-        body: |
+      include_role:
+        name: send_report
+      vars:
+        report_subject: "[vm-updates] Weekly patch report"
+        report_body: |
           <html>
           <body style="font-family: Arial, sans-serif; color: #222;">
             <h2 style="color:#2c3e50;">VM updates report</h2>
