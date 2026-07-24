@@ -1,0 +1,33 @@
+---
+- name: Start the live migration
+  ansible.builtin.command: >
+    qm migrate {{ migrate_vmid }} {{ migrate_target_node }}
+    --online --with-local-disks --targetstorage nvme_data
+  register: migrate_start
+  async: 3600
+  poll: 0
+
+- name: Wait for the migration to complete
+  ansible.builtin.async_status:
+    jid: "{{ migrate_start.ansible_job_id }}"
+  register: migrate_job
+  until: migrate_job.finished
+  retries: 120
+  delay: 10
+  # Tolerate transient connection blips (relevant if this host is the one running Semaphore itself)
+  ignore_errors: true
+
+- name: Fail clearly if the migration job itself reports an error
+  ansible.builtin.fail:
+    msg: "Migration of VM {{ migrate_vmid }} to {{ migrate_target_node }} failed: {{ migrate_job.stderr | default('unknown error') }}"
+  when: migrate_job.rc is defined and migrate_job.rc != 0
+
+- name: Confirm the VM is now running on the target node
+  ansible.builtin.command: >
+    pvesh get /nodes/{{ migrate_target_node }}/qemu/{{ migrate_vmid }}/status/current
+    --output-format json
+  register: vm_status_check
+  retries: 6
+  delay: 5
+  until: (vm_status_check.stdout | from_json).status == 'running'
+  changed_when: false

@@ -1,5 +1,5 @@
 ---
-- name: PVE host updates - placement dry-run test
+- name: PVE host updates - single VM migration test
   hosts: "{{ target_pve_host | default('pve1') }}"
   gather_facts: false
   vars:
@@ -9,6 +9,15 @@
       - pve3
     pve_other_nodes: "{{ pve_all_nodes | difference([inventory_hostname]) }}"
   tasks:
-    - name: Compute placement (dry-run, no actual migration)
+    - name: Compute placement (dry-run)
       include_role:
         name: pve_placement
+      when: test_mode | default('placement') == 'placement'
+
+    - name: Migrate a single test VM
+      include_role:
+        name: pve_migrate_vm
+      vars:
+        migrate_vmid: "{{ test_vmid }}"
+        migrate_target_node: "{{ test_target_node }}"
+      when: test_mode | default('placement') == 'migrate'
