@@ -24,7 +24,7 @@ node_free_mem = {}
 node_vm_count = {}
 for node in target_nodes:
     status = get_node_status(node)
-    node_free_mem[node] = status['maxmem'] - status['mem']
+    node_free_mem[node] = status['memory']['free']
     node_vm_count[node] = len(get_node_vms(node))
 
 placements = []
