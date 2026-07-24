@@ -85,10 +85,14 @@
       - pve3
     proxmox_api_host: "{{ hostvars[pve_all_nodes | first].ansible_host }}"
   tasks:
-    - name: Rebalance the whole cluster (skipped if the run was halted earlier)
+    - name: Determine locally if any host was blocked during this run
+      ansible.builtin.set_fact:
+        rebalance_should_run: "{{ ansible_play_hosts_all | map('extract', hostvars) | map(attribute='pve_host_status', default='NOT_PROCESSED') | select('equalto', 'BLOCKED') | list | length == 0 }}"
+
+    - name: Rebalance the whole cluster (skipped if any host was blocked earlier)
       include_role:
         name: pve_rebalance
-      when: hostvars['localhost'].run_was_halted is not defined or not hostvars['localhost'].run_was_halted
+      when: rebalance_should_run | bool
 
 - name: Send aggregated pve-updates report
   hosts: localhost
