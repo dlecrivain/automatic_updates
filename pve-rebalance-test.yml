@@ -1,0 +1,15 @@
+---
+- name: Test pve_rebalance in isolation (dry-run by default)
+  hosts: pve1
+  gather_facts: false
+  vars:
+    pve_all_nodes:
+      - pve1
+      - pve2
+      - pve3
+  tasks:
+    - name: Compute the rebalance plan
+      include_role:
+        name: pve_rebalance
+      vars:
+        rebalance_dry_run: "{{ rebalance_dry_run | default(true) }}"
