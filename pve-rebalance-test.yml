@@ -8,9 +8,10 @@
       - pve2
       - pve3
     proxmox_api_host: "{{ hostvars['pve1'].ansible_host }}"
+    test_dry_run: "{{ dry_run_override | default(true) }}"
   tasks:
     - name: Compute the rebalance plan
       include_role:
         name: pve_rebalance
       vars:
-        rebalance_dry_run: "{{ rebalance_dry_run | default(true) }}"
+        rebalance_dry_run: "{{ test_dry_run }}"
