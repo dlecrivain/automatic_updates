@@ -1,4 +1,10 @@
 ---
+- name: Refresh apt package cache before checking (dnf/yum handles this internally)
+  ansible.builtin.apt:
+    update_cache: true
+  become: true
+  when: ansible_facts['pkg_mgr'] == 'apt'
+
 - name: Check available updates (dnf/yum)
   ansible.builtin.command: dnf check-update
   register: dnf_check
