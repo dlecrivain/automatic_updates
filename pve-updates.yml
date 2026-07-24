@@ -75,13 +75,15 @@
           ansible.builtin.meta: end_play
 
 - name: Verify health of all migrated VMs
-  hosts: "{{ hostvars['localhost'].migrated_vm_names | default([]) | join(',') }}"
+  hosts: "{{ hostvars['localhost'].migrated_vm_names | default(['localhost']) | join(',') }}"
   gather_facts: false
   tasks:
     - name: Check services after migration
       include_role:
         name: health_check
-      when: health_check_containers is defined or health_check_url is defined
+      when: >
+        inventory_hostname != 'localhost' and
+        (health_check_containers is defined or health_check_url is defined)
 
 - name: Global rebalance after all hosts are patched
   hosts: "{{ target_pve_hosts | default('pve1,pve2,pve3') }}"
