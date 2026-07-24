@@ -10,7 +10,7 @@
   loop: "{{ health_check_containers | default([]) }}"
   loop_control:
     label: "{{ item }}"
-  delegate_to: "{{ health_check_delegate_to | default(omit) }}"
+  delegate_to: "{{ health_check_delegate_to | default(inventory_hostname) }}"
   when: health_check_containers is defined
 
 - name: Initialize container health results
@@ -37,7 +37,7 @@
   delay: 10
   until: (url_check.status | default(0)) == 200
   ignore_errors: true
-  delegate_to: "{{ health_check_delegate_to | default(omit) }}"
+  delegate_to: "{{ health_check_delegate_to | default(inventory_hostname) }}"
 
 - name: Record URL check status
   ansible.builtin.set_fact:
