@@ -38,6 +38,15 @@
         - name: Stop the entire run - no further hosts will be processed
           ansible.builtin.meta: end_play
 
+- name: Verify health of all migrated VMs
+  hosts: "{{ hostvars['localhost'].migrated_vm_names | default([]) | join(',') }}"
+  gather_facts: false
+  tasks:
+    - name: Check services after migration
+      include_role:
+        name: health_check
+      when: health_check_containers is defined or health_check_url is defined
+
 - name: Send aggregated pve-updates report
   hosts: localhost
   gather_facts: false
